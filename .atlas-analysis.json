@@ -1,0 +1,78 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "Lettermint Laravel",
+  "projectDescription": "Official Lettermint email service driver for Laravel applications",
+  "theme": "mint",
+  "primaryColor": "#7C3AED",
+  "lightColor": "#A78BFA",
+  "darkColor": "#5B21B6",
+  "navigation": {
+    "groups": [
+      {
+        "group": "Get Started",
+        "pages": [
+          "introduction",
+          "installation",
+          "configuration"
+        ]
+      },
+      {
+        "group": "Core Features",
+        "pages": [
+          "features/sending-emails",
+          "features/routes",
+          "features/idempotency",
+          "features/tags-and-metadata",
+          "features/attachments"
+        ]
+      },
+      {
+        "group": "Webhooks",
+        "pages": [
+          "webhooks/setup",
+          "webhooks/events",
+          "webhooks/handling-events"
+        ]
+      },
+      {
+        "group": "API Reference",
+        "pages": [
+          "api/configuration",
+          "api/event-reference"
+        ]
+      },
+      {
+        "group": "Resources",
+        "pages": [
+          "changelog",
+          "contributing"
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Laravel mail transport integration",
+    "Route-based email sending",
+    "Automatic idempotency support",
+    "Tags and metadata tracking",
+    "Webhook event handling",
+    "Email attachments and inline images",
+    "Multiple mailer configurations"
+  ],
+  "publicApiSurface": [
+    "LettermintTransportFactory",
+    "LettermintServiceProvider",
+    "Lettermint facade",
+    "MessageCreated event",
+    "MessageSent event",
+    "MessageDelivered event",
+    "MessageHardBounced event",
+    "MessageSoftBounced event",
+    "MessageSpamComplaint event",
+    "MessageFailed event",
+    "MessageSuppressed event",
+    "MessageUnsubscribed event",
+    "MessageInbound event",
+    "WebhookTest event"
+  ]
+}
