@@ -1,0 +1,240 @@
+---
+title: Configuration Reference
+description: Complete configuration reference for the Lettermint Laravel package
+---
+
+This page provides a comprehensive reference for all configuration options available in the Lettermint Laravel package.
+
+## Package Configuration
+
+The package configuration is located in `config/lettermint.php`. Publish it using:
+
+```bash
+php artisan vendor:publish --tag=lettermint-config
+```
+
+### API Token
+
+<ParamField path="token" type="string" required>
+  Your Lettermint API token. Every Lettermint project has a unique API token that can be found in your project settings.
+  
+  **Environment Variable:** `LETTERMINT_TOKEN`
+  
+  ```php
+  'token' => env('LETTERMINT_TOKEN'),
+  ```
+  
+  Alternatively, you can configure the token in `config/services.php`:
+  
+  ```php
+  'services' => [
+      'lettermint' => [
+          'token' => env('LETTERMINT_TOKEN'),
+      ],
+  ],
+  ```
+</ParamField>
+
+### Webhook Configuration
+
+All webhook-related settings are nested under the `webhooks` key.
+
+<ParamField path="webhooks.secret" type="string" required>
+  The signing secret used to verify incoming webhook requests from Lettermint. This ensures that the webhook payload is authentic and hasn't been tampered with.
+  
+  **Environment Variable:** `LETTERMINT_WEBHOOK_SECRET`
+  
+  **Default:** `null`
+  
+  ```php
+  'secret' => env('LETTERMINT_WEBHOOK_SECRET'),
+  ```
+  
+  Find your webhook signing secret in your Lettermint project settings under the Webhooks section.
+</ParamField>
+
+<ParamField path="webhooks.prefix" type="string">
+  The route prefix for the webhook endpoint. The full webhook URL will be constructed as `{your-app-url}/{prefix}/webhook`.
+  
+  **Environment Variable:** `LETTERMINT_WEBHOOK_PREFIX`
+  
+  **Default:** `lettermint`
+  
+  ```php
+  'prefix' => env('LETTERMINT_WEBHOOK_PREFIX', 'lettermint'),
+  ```
+  
+  **Example URLs:**
+  - Default: `https://yourapp.com/lettermint/webhook`
+  - Custom prefix `api/events`: `https://yourapp.com/api/events/webhook`
+</ParamField>
+
+<ParamField path="webhooks.tolerance" type="integer">
+  The maximum allowed time difference (in seconds) between the webhook timestamp and the current server time. This helps prevent replay attacks.
+  
+  **Environment Variable:** `LETTERMINT_WEBHOOK_TOLERANCE`
+  
+  **Default:** `300` (5 minutes)
+  
+  ```php
+  'tolerance' => env('LETTERMINT_WEBHOOK_TOLERANCE', 300),
+  ```
+  
+  If the timestamp difference exceeds this value, the webhook request will be rejected.
+</ParamField>
+
+## Mail Transport Configuration
+
+Configure the Lettermint mail transport in `config/mail.php` to send emails using Laravel's Mail facade.
+
+### Basic Setup
+
+```php
+'mailers' => [
+    'lettermint' => [
+        'transport' => 'lettermint',
+    ],
+],
+```
+
+### Transport Options
+
+<ParamField path="route_id" type="string">
+  The Lettermint route ID to use for sending emails through this mailer. When specified, all emails sent through this mailer will use the specified route.
+  
+  ```php
+  'mailers' => [
+      'lettermint' => [
+          'transport' => 'lettermint',
+          'route_id' => 'route_abc123',
+      ],
+  ],
+  ```
+  
+  This is useful when you have multiple sending routes configured in Lettermint and want to assign specific mailers to specific routes.
+</ParamField>
+
+<ParamField path="idempotency" type="boolean">
+  Enable automatic idempotency key generation for emails sent through this mailer. When enabled, the package automatically generates a stable idempotency key based on email content.
+  
+  **Default:** `false`
+  
+  ```php
+  'mailers' => [
+      'lettermint' => [
+          'transport' => 'lettermint',
+          'idempotency' => true,
+      ],
+  ],
+  ```
+  
+  The idempotency key is generated using a SHA256 hash of:
+  - Email subject
+  - Recipients (to, cc, bcc)
+  - Email body (HTML or text)
+  - Sender address
+  - Timestamp (if window is less than 24 hours)
+  
+  This ensures that retrying the same email (e.g., from a failed queue job) won't result in duplicate sends.
+  
+  <Note>
+    Individual emails can override this by setting a custom `Idempotency-Key` header, which takes precedence over automatic generation.
+  </Note>
+</ParamField>
+
+<ParamField path="idempotency_window" type="integer">
+  The time window (in seconds) for automatic idempotency key generation. This option is only used when `idempotency` is enabled.
+  
+  **Default:** `86400` (24 hours)
+  
+  ```php
+  'mailers' => [
+      'lettermint' => [
+          'transport' => 'lettermint',
+          'idempotency' => true,
+          'idempotency_window' => 3600, // 1 hour
+      ],
+  ],
+  ```
+  
+  **How it works:**
+  
+  - **24 hours (default):** The idempotency key remains the same for the same email content indefinitely, matching Lettermint's API retention period. This provides permanent deduplication.
+  - **Less than 24 hours:** The current timestamp (rounded to the window) is included in the key generation. This allows the same email to be sent again after the window expires.
+  
+  **Example use cases:**
+  
+  | Window | Use Case |
+  |--------|----------|
+  | `86400` (24h) | Prevent duplicate sends permanently (useful for transactional emails) |
+  | `3600` (1h) | Allow resending the same email after 1 hour (useful for notifications) |
+  | `300` (5m) | Short-term retry protection for queue failures |
+</ParamField>
+
+## Configuration Examples
+
+### Basic Configuration
+
+**config/lettermint.php:**
+```php
+return [
+    'token' => env('LETTERMINT_TOKEN'),
+    'webhooks' => [
+        'secret' => env('LETTERMINT_WEBHOOK_SECRET'),
+        'prefix' => 'lettermint',
+        'tolerance' => 300,
+    ],
+];
+```
+
+**.env:**
+```bash
+LETTERMINT_TOKEN=your_api_token_here
+LETTERMINT_WEBHOOK_SECRET=your_webhook_secret_here
+```
+
+### Multiple Mailers with Different Routes
+
+**config/mail.php:**
+```php
+'mailers' => [
+    // Transactional emails with idempotency
+    'transactional' => [
+        'transport' => 'lettermint',
+        'route_id' => 'route_transactional',
+        'idempotency' => true,
+        'idempotency_window' => 86400, // 24 hours
+    ],
+    
+    // Marketing emails without idempotency
+    'marketing' => [
+        'transport' => 'lettermint',
+        'route_id' => 'route_marketing',
+        'idempotency' => false,
+    ],
+    
+    // Notification emails with short retry window
+    'notifications' => [
+        'transport' => 'lettermint',
+        'route_id' => 'route_notifications',
+        'idempotency' => true,
+        'idempotency_window' => 3600, // 1 hour
+    ],
+],
+```
+
+### Custom Webhook Endpoint
+
+**config/lettermint.php:**
+```php
+return [
+    'token' => env('LETTERMINT_TOKEN'),
+    'webhooks' => [
+        'secret' => env('LETTERMINT_WEBHOOK_SECRET'),
+        'prefix' => 'api/webhooks/lettermint',
+        'tolerance' => 600, // 10 minutes
+    ],
+];
+```
+
+This configures the webhook endpoint at `https://yourapp.com/api/webhooks/lettermint/webhook`.

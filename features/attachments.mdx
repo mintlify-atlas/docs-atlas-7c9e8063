@@ -1,0 +1,372 @@
+---
+title: Email attachments
+description: Send files and inline images with your emails using the Lettermint Laravel driver
+---
+
+The Lettermint Laravel driver fully supports email attachments, including regular file attachments and inline images for embedding in HTML emails.
+
+## Basic attachments
+
+Attach files to your emails using Laravel's standard attachment methods:
+
+```php
+use Symfony\Component\Mime\Email;
+
+$email = (new Email)
+    ->from('from@example.com')
+    ->to('to@example.com')
+    ->subject('Invoice attached')
+    ->text('Please find your invoice attached.')
+    ->attach('base64-encoded-content', 'invoice.pdf', 'application/pdf');
+```
+
+<Note>
+  File content should be base64-encoded when using the `attach()` method with raw content.
+</Note>
+
+## Attaching files in Mailables
+
+You can attach files in your Mailable classes:
+
+```php
+use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Content;
+use Illuminate\Mail\Mailables\Envelope;
+use Illuminate\Mail\Mailables\Attachment;
+
+class InvoiceEmail extends Mailable
+{
+    public function __construct(
+        public Invoice $invoice
+    ) {}
+
+    public function envelope(): Envelope
+    {
+        return new Envelope(
+            subject: 'Your Invoice',
+        );
+    }
+
+    public function content(): Content
+    {
+        return new Content(
+            view: 'emails.invoice',
+        );
+    }
+
+    public function attachments(): array
+    {
+        return [
+            Attachment::fromPath($this->invoice->pdf_path)
+                ->as('invoice.pdf')
+                ->withMime('application/pdf'),
+        ];
+    }
+}
+```
+
+## Attaching from storage
+
+Attach files from Laravel's storage system:
+
+```php
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Mail\Mailables\Attachment;
+
+class ReportEmail extends Mailable
+{
+    public function attachments(): array
+    {
+        return [
+            Attachment::fromStorage('reports/monthly-report.pdf')
+                ->as('report.pdf')
+                ->withMime('application/pdf'),
+        ];
+    }
+}
+```
+
+## Inline images
+
+Embed images directly in your HTML emails using inline attachments with Content-ID (CID):
+
+```php
+use Symfony\Component\Mime\Email;
+use Symfony\Component\Mime\Part\DataPart;
+
+$email = (new Email)
+    ->from('from@example.com')
+    ->to('to@example.com')
+    ->subject('Welcome!')
+    ->html('<h1>Welcome!</h1><img src="cid:logo@example.com">');
+
+// Create inline image
+$image = new DataPart('image-data', 'logo.png', 'image/png');
+$image->asInline();
+$image->setContentId('logo@example.com');
+$email->addPart($image);
+```
+
+The image can now be referenced in your HTML using `cid:logo@example.com`.
+
+## Inline images in Mailables
+
+Use inline attachments in your Mailable classes:
+
+```php
+use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Content;
+use Illuminate\Mail\Mailables\Envelope;
+use Illuminate\Mail\Mailables\Attachment;
+
+class WelcomeEmail extends Mailable
+{
+    public function envelope(): Envelope
+    {
+        return new Envelope(
+            subject: 'Welcome to our platform!',
+        );
+    }
+
+    public function content(): Content
+    {
+        return new Content(
+            view: 'emails.welcome',
+        );
+    }
+
+    public function attachments(): array
+    {
+        return [
+            Attachment::fromPath(public_path('images/logo.png'))
+                ->as('logo.png')
+                ->withMime('image/png')
+                ->inline('logo'),
+        ];
+    }
+}
+```
+
+Then in your Blade template:
+
+```html
+<img src="{{ $message->embed($logo) }}" alt="Logo">
+```
+
+## Supported file types
+
+The driver supports all common file types:
+
+<Tabs>
+  <Tab title="Documents">
+    - PDF: `application/pdf`
+    - Word: `application/vnd.openxmlformats-officedocument.wordprocessingml.document`
+    - Excel: `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
+    - Text: `text/plain`
+  </Tab>
+  <Tab title="Images">
+    - PNG: `image/png`
+    - JPEG: `image/jpeg`
+    - GIF: `image/gif`
+    - SVG: `image/svg+xml`
+  </Tab>
+  <Tab title="Archives">
+    - ZIP: `application/zip`
+    - RAR: `application/x-rar-compressed`
+    - TAR: `application/x-tar`
+  </Tab>
+</Tabs>
+
+## Multiple attachments
+
+Attach multiple files to a single email:
+
+```php
+use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Attachment;
+
+class MonthlyReportEmail extends Mailable
+{
+    public function attachments(): array
+    {
+        return [
+            Attachment::fromPath(storage_path('reports/sales.pdf'))
+                ->as('sales-report.pdf')
+                ->withMime('application/pdf'),
+            
+            Attachment::fromPath(storage_path('reports/expenses.pdf'))
+                ->as('expenses-report.pdf')
+                ->withMime('application/pdf'),
+            
+            Attachment::fromPath(storage_path('reports/summary.xlsx'))
+                ->as('summary.xlsx')
+                ->withMime('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+        ];
+    }
+}
+```
+
+## Dynamic attachments
+
+Generate and attach files dynamically:
+
+```php
+use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Attachment;
+use Barryvdh\DomPDF\Facade\Pdf;
+
+class InvoiceEmail extends Mailable
+{
+    public function __construct(
+        public Order $order
+    ) {}
+
+    public function attachments(): array
+    {
+        // Generate PDF on the fly
+        $pdf = Pdf::loadView('pdf.invoice', ['order' => $this->order]);
+        
+        return [
+            Attachment::fromData(fn () => $pdf->output(), 'invoice.pdf')
+                ->withMime('application/pdf'),
+        ];
+    }
+}
+```
+
+## Attachment size limits
+
+<Warning>
+  Be mindful of attachment sizes. Large attachments can slow down email delivery and may be rejected by recipient mail servers. Keep total attachment size under 10MB when possible.
+</Warning>
+
+## How attachments are processed
+
+The driver processes attachments as follows:
+
+<Steps>
+
+<Step title="Extract attachment metadata">
+  The driver extracts the filename, content type, and content from each attachment.
+</Step>
+
+<Step title="Handle inline images">
+  If an attachment has a Content-ID header, it's marked as an inline attachment.
+</Step>
+
+<Step title="Encode content">
+  File content is base64-encoded and newlines are removed.
+</Step>
+
+<Step title="Send to API">
+  All attachments are sent to the Lettermint API along with the email.
+</Step>
+
+</Steps>
+
+Here's how the driver processes attachments internally:
+
+```php
+// From src/Transport/LettermintTransportFactory.php:67-86
+$attachments = [];
+if ($email->getAttachments()) {
+    foreach ($email->getAttachments() as $attachment) {
+        $attachmentHeaders = $attachment->getPreparedHeaders();
+        $filename = $attachmentHeaders->getHeaderParameter('Content-Disposition', 'filename');
+
+        $item = [
+            'content' => str_replace("\r\n", '', $attachment->bodyToString()),
+            'filename' => $filename,
+            'content_type' => $attachmentHeaders->get('Content-Type')->getBody(),
+        ];
+
+        $contentId = $attachmentHeaders->get('Content-ID');
+        if ($contentId) {
+            $item['content_id'] = trim($contentId->getBodyAsString(), '<>');
+        }
+
+        $attachments[] = $item;
+    }
+}
+```
+
+## Attaching from URLs
+
+Download and attach files from URLs:
+
+```php
+use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Attachment;
+use Illuminate\Support\Facades\Http;
+
+class DocumentEmail extends Mailable
+{
+    public function attachments(): array
+    {
+        $response = Http::get('https://example.com/document.pdf');
+        
+        return [
+            Attachment::fromData(
+                fn () => $response->body(),
+                'document.pdf'
+            )->withMime('application/pdf'),
+        ];
+    }
+}
+```
+
+## Testing attachments
+
+Test that attachments are properly included in your emails:
+
+```php
+use Tests\TestCase;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\InvoiceEmail;
+
+class AttachmentTest extends TestCase
+{
+    public function test_invoice_email_has_pdf_attachment()
+    {
+        Mail::fake();
+        
+        $invoice = Invoice::factory()->create();
+        
+        Mail::to('user@example.com')->send(new InvoiceEmail($invoice));
+        
+        Mail::assertSent(InvoiceEmail::class, function ($mail) {
+            return $mail->hasAttachment('invoice.pdf');
+        });
+    }
+}
+```
+
+## Best practices
+
+<Steps>
+
+<Step title="Optimize file sizes">
+  Compress files before attaching them to reduce email size and improve delivery times.
+</Step>
+
+<Step title="Use meaningful filenames">
+  Give attachments clear, descriptive names that recipients will understand.
+  
+  ```php
+  // Good
+  Attachment::fromPath($path)->as('invoice-2024-03-001.pdf')
+  
+  // Less clear
+  Attachment::fromPath($path)->as('doc.pdf')
+  ```
+</Step>
+
+<Step title="Set correct MIME types">
+  Always specify the correct MIME type for your attachments to ensure proper rendering.
+</Step>
+
+<Step title="Consider alternatives for large files">
+  For files larger than 5-10MB, consider uploading to cloud storage and including a download link instead.
+</Step>
+
+</Steps>

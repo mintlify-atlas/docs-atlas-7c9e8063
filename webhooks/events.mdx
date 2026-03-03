@@ -1,0 +1,258 @@
+---
+title: Webhook Events
+description: Complete reference of available Lettermint webhook events and their data structures
+---
+
+Lettermint dispatches webhook events for various email lifecycle stages. Each event is delivered as a typed Laravel event that you can listen to in your application.
+
+## Available Events
+
+The package provides the following event classes, all extending `LettermintWebhookEvent`:
+
+| Event Class | Webhook Type | Description |
+|-------------|--------------|-------------|
+| `MessageCreated` | `message.created` | Message accepted for processing |
+| `MessageSent` | `message.sent` | Message sent to recipient server |
+| `MessageDelivered` | `message.delivered` | Message successfully delivered |
+| `MessageHardBounced` | `message.hard_bounced` | Permanent delivery failure |
+| `MessageSoftBounced` | `message.soft_bounced` | Temporary delivery failure |
+| `MessageSpamComplaint` | `message.spam_complaint` | Recipient reported spam |
+| `MessageFailed` | `message.failed` | Processing failure |
+| `MessageSuppressed` | `message.suppressed` | Message suppressed |
+| `MessageUnsubscribed` | `message.unsubscribed` | Recipient unsubscribed |
+| `MessageInbound` | `message.inbound` | Inbound email received |
+| `WebhookTest` | `webhook.test` | Test event from dashboard |
+
+## Event Structure
+
+All webhook events share a common structure with two main properties:
+
+### Envelope
+
+The envelope contains metadata common to all webhook events:
+
+```php
+$event->envelope->id;        // string - Webhook event ID
+$event->envelope->event;     // WebhookEventType - Event type enum
+$event->envelope->timestamp; // DateTimeImmutable - Event timestamp
+```
+
+### Data
+
+The data property contains event-specific information and varies by event type. Each event has its own typed data class.
+
+## WebhookEventType Enum
+
+The `WebhookEventType` enum defines all available event types and provides helper methods:
+
+```php
+namespace Lettermint\Laravel\Webhooks;
+
+enum WebhookEventType: string
+{
+    case MessageCreated = 'message.created';
+    case MessageSent = 'message.sent';
+    case MessageDelivered = 'message.delivered';
+    case MessageHardBounced = 'message.hard_bounced';
+    case MessageSoftBounced = 'message.soft_bounced';
+    case MessageSpamComplaint = 'message.spam_complaint';
+    case MessageFailed = 'message.failed';
+    case MessageSuppressed = 'message.suppressed';
+    case MessageUnsubscribed = 'message.unsubscribed';
+    case MessageInbound = 'message.inbound';
+    case WebhookTest = 'webhook.test';
+}
+```
+
+### Helper Methods
+
+The enum provides convenient helper methods for categorizing events:
+
+```php
+// Check if event is a bounce (hard or soft)
+$event->envelope->event->isBounce(); // true for hard/soft bounces
+
+// Check if event indicates a delivery issue
+$event->envelope->event->isDeliveryIssue(); // true for bounces, failed, suppressed
+```
+
+## Event Data Reference
+
+### MessageCreated
+
+Dispatched when a message is accepted for processing.
+
+```php
+$event->data->messageId;   // string
+$event->data->from;        // EmailAddress
+$event->data->to;          // array<string>
+$event->data->cc;          // array<string>
+$event->data->bcc;         // array<string>
+$event->data->replyTo;     // array<string>
+$event->data->subject;     // string
+$event->data->metadata;    // array<string, mixed>
+$event->data->tag;         // string|null
+```
+
+### MessageSent
+
+Dispatched when a message is sent to the recipient's mail server.
+
+```php
+$event->data->messageId;              // string
+$event->data->recipient;              // string
+$event->data->response->statusCode;   // int
+$event->data->response->content;      // string|null
+$event->data->metadata;               // array<string, mixed>
+$event->data->tag;                    // string|null
+```
+
+### MessageDelivered
+
+Dispatched when a message is successfully delivered to the recipient.
+
+```php
+$event->data->messageId;              // string
+$event->data->recipient;              // string
+$event->data->response->statusCode;   // int
+$event->data->response->content;      // string|null
+$event->data->metadata;               // array<string, mixed>
+$event->data->tag;                    // string|null
+```
+
+### MessageHardBounced
+
+Dispatched when a message experiences a permanent delivery failure.
+
+```php
+$event->data->messageId;              // string
+$event->data->recipient;              // string
+$event->data->response->statusCode;   // int
+$event->data->response->content;      // string|null
+$event->data->metadata;               // array<string, mixed>
+$event->data->tag;                    // string|null
+```
+
+<Warning>
+  Hard bounces indicate permanent issues (invalid email address, domain doesn't exist). You should remove these recipients from your mailing list.
+</Warning>
+
+### MessageSoftBounced
+
+Dispatched when a message experiences a temporary delivery failure.
+
+```php
+$event->data->messageId;              // string
+$event->data->recipient;              // string
+$event->data->response->statusCode;   // int
+$event->data->response->content;      // string|null
+$event->data->metadata;               // array<string, mixed>
+$event->data->tag;                    // string|null
+```
+
+<Note>
+  Soft bounces are temporary (mailbox full, server temporarily unavailable). Lettermint will automatically retry delivery.
+</Note>
+
+### MessageSpamComplaint
+
+Dispatched when a recipient marks a message as spam.
+
+```php
+$event->data->messageId;              // string
+$event->data->recipient;              // string
+$event->data->response->statusCode;   // int
+$event->data->response->content;      // string|null
+$event->data->metadata;               // array<string, mixed>
+$event->data->tag;                    // string|null
+```
+
+### MessageFailed
+
+Dispatched when message processing fails.
+
+```php
+$event->data->messageId;              // string
+$event->data->recipient;              // string
+$event->data->response->statusCode;   // int
+$event->data->response->content;      // string|null
+$event->data->metadata;               // array<string, mixed>
+$event->data->tag;                    // string|null
+```
+
+### MessageSuppressed
+
+Dispatched when a message is suppressed (recipient is on a suppression list).
+
+```php
+$event->data->messageId;              // string
+$event->data->recipient;              // string
+$event->data->response->statusCode;   // int
+$event->data->response->content;      // string|null
+$event->data->metadata;               // array<string, mixed>
+$event->data->tag;                    // string|null
+```
+
+### MessageUnsubscribed
+
+Dispatched when a recipient unsubscribes.
+
+```php
+$event->data->messageId;              // string
+$event->data->recipient;              // string
+$event->data->response->statusCode;   // int
+$event->data->response->content;      // string|null
+$event->data->metadata;               // array<string, mixed>
+$event->data->tag;                    // string|null
+```
+
+### MessageInbound
+
+Dispatched when an inbound email is received.
+
+```php
+$event->data->route;           // string
+$event->data->messageId;       // string
+$event->data->from;            // InboundEmailAddress
+$event->data->to;              // array<InboundEmailAddress>
+$event->data->cc;              // array<InboundEmailAddress>
+$event->data->recipient;       // string
+$event->data->subaddress;      // string|null
+$event->data->replyTo;         // string|null
+$event->data->subject;         // string
+$event->data->date;            // DateTimeImmutable
+$event->data->body;            // EmailBody
+$event->data->tag;             // string|null
+$event->data->headers;         // array<EmailHeader>
+$event->data->attachments;     // array<EmailAttachment>
+$event->data->isSpam;          // bool
+$event->data->spamScore;       // float
+$event->data->spamSymbols;     // array<SpamSymbol>
+```
+
+### WebhookTest
+
+Dispatched when testing your webhook endpoint from the Lettermint dashboard.
+
+```php
+$event->data->message;     // string
+$event->data->webhookId;   // string
+$event->data->timestamp;   // int
+```
+
+## Listening to All Events
+
+You can listen to all webhook events using the base `LettermintWebhookEvent` class:
+
+```php
+use Lettermint\Laravel\Events\LettermintWebhookEvent;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
+
+Event::listen(LettermintWebhookEvent::class, function (LettermintWebhookEvent $event) {
+    Log::info('Webhook received', [
+        'type' => $event->getEnvelope()->event->value,
+        'id' => $event->getEnvelope()->id,
+    ]);
+});
+```

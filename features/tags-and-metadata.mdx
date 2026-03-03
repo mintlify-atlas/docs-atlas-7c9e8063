@@ -1,0 +1,301 @@
+---
+title: Tags and metadata
+description: Organize, track, and analyze your emails using tags and metadata
+---
+
+The Lettermint Laravel driver supports adding tags and metadata to your emails for better organization, tracking, and analytics in the Lettermint dashboard.
+
+## Tags
+
+Tags help you categorize and filter your emails in the Lettermint dashboard. You can add one tag per email.
+
+### Method 1: Using Laravel's tag() method (recommended)
+
+```php
+use App\Mail\WelcomeEmail;
+use Illuminate\Support\Facades\Mail;
+
+Mail::send((new WelcomeEmail($user))
+    ->tag('onboarding')
+);
+```
+
+### Method 2: Using the envelope method in your Mailable
+
+```php
+use Illuminate\Mail\Mailables\Envelope;
+use Illuminate\Mail\Mailable;
+
+class WelcomeEmail extends Mailable
+{
+    public function envelope(): Envelope
+    {
+        return new Envelope(
+            subject: 'Welcome to our platform!',
+            tags: ['onboarding'], // Only one tag is allowed
+        );
+    }
+}
+```
+
+### Method 3: Using custom header (backward compatibility)
+
+The Lettermint Laravel driver also supports the `X-LM-Tag` header for backward compatibility:
+
+```php
+use Illuminate\Mail\Mailables\Headers;
+use Illuminate\Mail\Mailable;
+
+class WelcomeEmail extends Mailable
+{
+    public function headers(): Headers
+    {
+        return new Headers(
+            text: [
+                'X-LM-Tag' => 'onboarding',
+            ],
+        );
+    }
+}
+```
+
+<Note>
+  When both `TagHeader` and `X-LM-Tag` are present, the `TagHeader` takes precedence.
+</Note>
+
+## Metadata
+
+Metadata allows you to attach custom key-value pairs to your emails for enhanced tracking and analytics.
+
+### Method 1: Using Laravel's metadata() method (recommended)
+
+```php
+use App\Mail\OrderConfirmation;
+use Illuminate\Support\Facades\Mail;
+
+Mail::send((new OrderConfirmation($order))
+    ->metadata('order_id', $order->id)
+    ->metadata('customer_id', $order->customer_id)
+);
+```
+
+### Method 2: Using the envelope method
+
+```php
+use Illuminate\Mail\Mailables\Envelope;
+use Illuminate\Mail\Mailable;
+
+class OrderConfirmation extends Mailable
+{
+    public function __construct(
+        public Order $order
+    ) {}
+
+    public function envelope(): Envelope
+    {
+        return new Envelope(
+            subject: 'Order Confirmation',
+            metadata: [
+                'order_id' => $this->order->id,
+                'customer_id' => $this->order->customer_id,
+                'order_total' => $this->order->total,
+            ],
+        );
+    }
+}
+```
+
+## Combining tags and metadata
+
+You can use both tags and metadata together for comprehensive email tracking:
+
+<Tabs>
+  <Tab title="Inline Usage">
+    ```php
+    use Illuminate\Support\Facades\Mail;
+    use App\Mail\OrderShipped;
+    
+    Mail::send((new OrderShipped($order))
+        ->tag('transactional')
+        ->metadata('order_id', $order->id)
+        ->metadata('tracking_number', $order->tracking_number)
+    );
+    ```
+  </Tab>
+  <Tab title="Mailable Class">
+    ```php
+    use Illuminate\Mail\Mailables\Envelope;
+    use Illuminate\Mail\Mailable;
+    
+    class OrderShipped extends Mailable
+    {
+        public function __construct(
+            public Order $order
+        ) {}
+    
+        public function envelope(): Envelope
+        {
+            return new Envelope(
+                subject: 'Your order has shipped!',
+                tags: ['transactional', 'shipping'],
+                metadata: [
+                    'order_id' => $this->order->id,
+                    'tracking_number' => $this->order->tracking_number,
+                    'carrier' => $this->order->carrier,
+                ],
+            );
+        }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Common use cases
+
+### User tracking
+
+Track which users receive which emails:
+
+```php
+Mail::send((new WelcomeEmail($user))
+    ->tag('onboarding')
+    ->metadata('user_id', $user->id)
+    ->metadata('signup_source', $user->signup_source)
+);
+```
+
+### Campaign tracking
+
+Track email campaigns:
+
+```php
+Mail::send((new NewsletterEmail($campaign))
+    ->tag('newsletter')
+    ->metadata('campaign_id', $campaign->id)
+    ->metadata('campaign_name', $campaign->name)
+    ->metadata('sent_at', now()->toIso8601String())
+);
+```
+
+### Order tracking
+
+Track order-related emails:
+
+```php
+Mail::send((new OrderConfirmation($order))
+    ->tag('transactional')
+    ->metadata('order_id', $order->id)
+    ->metadata('order_total', $order->total)
+    ->metadata('payment_method', $order->payment_method)
+);
+```
+
+### User behavior tracking
+
+Track emails related to specific user actions:
+
+```php
+Mail::send((new PasswordResetEmail($user))
+    ->tag('user-notification')
+    ->metadata('user_id', $user->id)
+    ->metadata('notification_type', 'password_reset')
+    ->metadata('ip_address', request()->ip())
+);
+```
+
+## Analyzing emails in the dashboard
+
+Tags and metadata appear in the Lettermint dashboard, allowing you to:
+
+- Filter emails by tag
+- Search emails by metadata values
+- Generate analytics reports based on tags and metadata
+- Track email performance by category
+
+## Tag and metadata best practices
+
+<Steps>
+
+<Step title="Use consistent naming">
+  Use consistent tag names across your application. Consider creating constants:
+  
+  ```php
+  class EmailTag {
+      const TRANSACTIONAL = 'transactional';
+      const MARKETING = 'marketing';
+      const NOTIFICATION = 'notification';
+  }
+  
+  Mail::send((new WelcomeEmail($user))->tag(EmailTag::TRANSACTIONAL));
+  ```
+</Step>
+
+<Step title="Document metadata keys">
+  Document the metadata keys you use for easier tracking:
+  
+  ```php
+  // Common metadata keys:
+  // - user_id: The ID of the user receiving the email
+  // - order_id: Related order ID for transactional emails
+  // - campaign_id: Marketing campaign identifier
+  ```
+</Step>
+
+<Step title="Keep metadata relevant">
+  Only include metadata that's useful for tracking and analytics. Don't include sensitive information.
+</Step>
+
+<Step title="Use meaningful values">
+  Use clear, meaningful values that make sense when viewing in the dashboard:
+  
+  ```php
+  // Good
+  ->metadata('email_type', 'password_reset')
+  
+  // Less clear
+  ->metadata('type', 'pr')
+  ```
+</Step>
+
+</Steps>
+
+## Testing tags and metadata
+
+You can test that tags and metadata are properly set:
+
+```php
+use Tests\TestCase;
+use Symfony\Component\Mailer\Header\TagHeader;
+use Symfony\Component\Mailer\Header\MetadataHeader;
+
+class EmailTagsTest extends TestCase
+{
+    public function test_email_has_correct_tag()
+    {
+        $email = new WelcomeEmail($user);
+        $envelope = $email->envelope();
+        
+        $this->assertEquals(['onboarding'], $envelope->tags);
+    }
+    
+    public function test_email_has_correct_metadata()
+    {
+        $order = Order::factory()->create(['id' => 123]);
+        $email = new OrderConfirmation($order);
+        $envelope = $email->envelope();
+        
+        $this->assertArrayHasKey('order_id', $envelope->metadata);
+        $this->assertEquals(123, $envelope->metadata['order_id']);
+    }
+}
+```
+
+## Compatibility notes
+
+<Info>
+  The driver supports Laravel's native `tag()` and `metadata()` methods (Laravel 9+).
+</Info>
+
+<Note>
+  The `X-LM-Tag` header is supported for backward compatibility and to minimize confusion with the way of tagging emails sent via the SMTP relay.
+</Note>

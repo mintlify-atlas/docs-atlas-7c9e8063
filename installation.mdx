@@ -1,0 +1,97 @@
+---
+title: Installation
+description: Install and set up the Lettermint Laravel package in your application
+---
+
+# Installation
+
+Get started with Lettermint Laravel by installing the package via Composer and publishing the configuration file.
+
+## Requirements
+
+Before installing, ensure your environment meets these requirements:
+
+- **PHP**: 8.2 or higher
+- **Laravel**: 9 or higher
+
+## Installation steps
+
+<Steps>
+  <Step title="Install via Composer">
+    Install the Lettermint Laravel package using Composer:
+    
+    ```bash
+    composer require lettermint/lettermint-laravel
+    ```
+    
+    The package uses Laravel's auto-discovery feature, so the service provider will be registered automatically.
+  </Step>
+  
+  <Step title="Publish the configuration file">
+    Publish the configuration file to customize your Lettermint settings:
+    
+    ```bash
+    php artisan vendor:publish --tag="lettermint-config"
+    ```
+    
+    This creates a `config/lettermint.php` file in your application where you can configure your API token and webhook settings.
+  </Step>
+  
+  <Step title="Configure your API token">
+    Add your Lettermint API token to your `.env` file:
+    
+    ```env
+    LETTERMINT_TOKEN=your-lettermint-token
+    ```
+    
+    <Info>
+      You can find your API token in your [Lettermint project settings](https://lettermint.co/settings).
+    </Info>
+  </Step>
+  
+  <Step title="Configure the mail transport">
+    Update your `config/mail.php` to add the Lettermint mailer. See the [Configuration guide](/configuration) for detailed setup instructions.
+  </Step>
+</Steps>
+
+## Verify installation
+
+After installation, verify that the package is installed correctly:
+
+### Check the configuration file
+
+Verify that the configuration file exists at `config/lettermint.php`:
+
+```bash
+ls config/lettermint.php
+```
+
+### Check the service provider
+
+The `LettermintServiceProvider` should be automatically registered. You can verify this by running:
+
+```bash
+php artisan about
+```
+
+Look for the Lettermint package in the list of loaded service providers.
+
+## What's next?
+
+After installing the package, you need to configure it to start sending emails:
+
+<Card title="Configuration guide" icon="gear" href="/configuration">
+  Learn how to configure API tokens, mail transports, routes, and advanced features like idempotency
+</Card>
+
+## Updating the package
+
+To update to the latest version of Lettermint Laravel:
+
+```bash
+composer update lettermint/lettermint-laravel
+```
+
+<Note>
+  Always check the [changelog](https://github.com/lettermint/lettermint-laravel/blob/main/CHANGELOG.md) for breaking changes before updating.
+</Note>

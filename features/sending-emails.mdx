@@ -1,0 +1,161 @@
+---
+title: Sending emails
+description: Learn how to send emails using the Lettermint Laravel driver with Laravel's mail system
+---
+
+The Lettermint Laravel driver integrates seamlessly with Laravel's native mail system, allowing you to send emails using Laravel's familiar Mail facade and Mailable classes.
+
+## Basic email sending
+
+Once you've configured the Lettermint transport, you can send emails using Laravel's standard Mail methods:
+
+```php
+use Illuminate\Support\Facades\Mail;
+use App\Mail\WelcomeEmail;
+
+Mail::to('user@example.com')->send(new WelcomeEmail($user));
+```
+
+## Sending to multiple recipients
+
+You can send emails to multiple recipients using Laravel's `to()`, `cc()`, and `bcc()` methods:
+
+```php
+use Symfony\Component\Mime\Address;
+use Illuminate\Support\Facades\Mail;
+
+Mail::to([
+    new Address('user@example.com', 'John Doe'),
+    new Address('sales@example.com', 'Sales Team')
+])
+->cc('manager@example.com')
+->bcc('archive@example.com')
+->send(new WelcomeEmail());
+```
+
+## Email content
+
+The driver supports both HTML and plain text email content:
+
+```php
+use Symfony\Component\Mime\Email;
+
+$email = (new Email)
+    ->from('from@example.com')
+    ->to('to@example.com')
+    ->subject('Hello world!')
+    ->html('<p>This is the HTML version</p>')
+    ->text('This is the plain text version');
+```
+
+## Using Laravel Mailables
+
+Create a Mailable class to organize your email logic:
+
+```php
+namespace App\Mail;
+
+use Illuminate\Bus\Queueable;
+use Illuminate\Mail\Mailable;
+use Illuminate\Queue\SerializesModels;
+
+class WelcomeEmail extends Mailable
+{
+    use Queueable, SerializesModels;
+
+    public function __construct(
+        public User $user
+    ) {}
+
+    public function content(): Content
+    {
+        return new Content(
+            view: 'emails.welcome',
+        );
+    }
+
+    public function envelope(): Envelope
+    {
+        return new Envelope(
+            subject: 'Welcome to our platform!',
+        );
+    }
+}
+```
+
+Then send it:
+
+```php
+Mail::to($user->email)->send(new WelcomeEmail($user));
+```
+
+## Custom headers
+
+You can add custom headers to your emails:
+
+```php
+$email->getHeaders()->addHeader('X-Custom-Header', 'test-value');
+```
+
+<Note>
+  The Lettermint driver automatically handles all standard email headers including `From`, `To`, `CC`, `BCC`, `Subject`, `Reply-To`, and `Content-Type`.
+</Note>
+
+## Reply-To addresses
+
+Specify a reply-to address for your emails:
+
+```php
+use Symfony\Component\Mime\Email;
+
+$email = (new Email)
+    ->from('noreply@example.com')
+    ->to('user@example.com')
+    ->replyTo('support@example.com')
+    ->subject('Need help?')
+    ->text('Contact us at support@example.com');
+```
+
+## Queued emails
+
+Send emails asynchronously using Laravel's queue system:
+
+```php
+use Illuminate\Support\Facades\Mail;
+
+Mail::to($user->email)->queue(new WelcomeEmail($user));
+```
+
+<Info>
+  When using queued emails, consider enabling [idempotency](/features/idempotency) to prevent duplicate sends if jobs are retried.
+</Info>
+
+## Error handling
+
+The driver throws a `TransportException` if the API request fails:
+
+```php
+use Symfony\Component\Mailer\Exception\TransportException;
+use Illuminate\Support\Facades\Mail;
+
+try {
+    Mail::to($user->email)->send(new WelcomeEmail($user));
+} catch (TransportException $e) {
+    Log::error('Failed to send email: ' . $e->getMessage());
+}
+```
+
+## Message ID tracking
+
+After sending an email, Lettermint returns a message ID that's automatically set on the email. This ID can be used to track the email's delivery status:
+
+```php
+$sentMessage = Mail::to('user@example.com')->send(new WelcomeEmail());
+$messageId = $sentMessage->getMessageId();
+
+// Example: lettermint-message-id-12345@lmta.net
+```
+
+<Note>
+  The message ID is formatted to comply with RFC 5322 standards. If Lettermint's ID doesn't contain an `@` symbol, the driver automatically appends `@lmta.net`.
+</Note>

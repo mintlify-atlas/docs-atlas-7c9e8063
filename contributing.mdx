@@ -1,0 +1,65 @@
+---
+title: Contributing
+description: Guidelines for contributing to Lettermint Laravel
+---
+
+Thank you for considering contributing to Lettermint Laravel! This guide will help you get started.
+
+## Reporting Issues
+
+If you discover a bug or have a feature request, please open an issue on [GitHub](https://github.com/lettermint/lettermint-laravel/issues). When reporting bugs, please include:
+
+- A clear description of the issue
+- Steps to reproduce the behavior
+- Expected vs actual behavior
+- Your environment (PHP version, Laravel version, package version)
+
+## Development Setup
+
+Clone the repository and install dependencies:
+
+```bash
+git clone https://github.com/lettermint/lettermint-laravel.git
+cd lettermint-laravel
+composer install
+```
+
+## Pull Requests
+
+We welcome pull requests! Before submitting:
+
+1. **Fork the repository** and create your branch from `main`
+2. **Write tests** for any new functionality
+3. **Run the test suite** to ensure all tests pass
+4. **Follow coding standards** by running Laravel Pint
+5. **Update documentation** if you're adding features or changing behavior
+
+### Running Tests
+
+```bash
+composer test
+```
+
+### Coding Standards
+
+This project follows Laravel coding standards. Format your code using Laravel Pint:
+
+```bash
+composer format
+```
+
+### Static Analysis
+
+Run PHPStan to catch potential issues:
+
+```bash
+composer analyse
+```
+
+## Code of Conduct
+
+Please be respectful and constructive in all interactions. We're all here to build something great together.
+
+## Questions?
+
+If you have questions about contributing, feel free to ask in the [GitHub Discussions](https://github.com/lettermint/lettermint-laravel/discussions) or join our community on Discord.

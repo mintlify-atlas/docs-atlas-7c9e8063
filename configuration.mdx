@@ -1,0 +1,317 @@
+---
+title: Configuration
+description: Configure API tokens, mail transports, routes, and advanced features for Lettermint Laravel
+---
+
+# Configuration
+
+After installing the package, configure Lettermint Laravel to integrate with your application's mail system.
+
+## Configuration file
+
+The main configuration file is located at `config/lettermint.php` after publishing:
+
+```php
+return [
+    // Lettermint API token
+    'token' => env('LETTERMINT_TOKEN'),
+    
+    // Webhook configuration
+    'webhooks' => [
+        'secret' => env('LETTERMINT_WEBHOOK_SECRET'),
+        'prefix' => env('LETTERMINT_WEBHOOK_PREFIX', 'lettermint'),
+        'tolerance' => env('LETTERMINT_WEBHOOK_TOLERANCE', 300),
+    ],
+];
+```
+
+## Environment variables
+
+Add these variables to your `.env` file:
+
+```env
+# Required: Your Lettermint API token
+LETTERMINT_TOKEN=your-lettermint-token
+
+# Optional: Webhook configuration
+LETTERMINT_WEBHOOK_SECRET=your-webhook-signing-secret
+LETTERMINT_WEBHOOK_PREFIX=lettermint
+LETTERMINT_WEBHOOK_TOLERANCE=300
+
+# Optional: Route IDs for multiple mailers
+LETTERMINT_ROUTE_ID=your-default-route-id
+LETTERMINT_MARKETING_ROUTE_ID=your-marketing-route-id
+LETTERMINT_TRANSACTIONAL_ROUTE_ID=your-transactional-route-id
+```
+
+<Info>
+  Find your API token and webhook signing secret in your [Lettermint project settings](https://lettermint.co/settings).
+</Info>
+
+## Mail configuration
+
+### Basic setup
+
+Configure the Lettermint transport in your `config/mail.php`:
+
+<Steps>
+  <Step title="Add the Lettermint mailer">
+    Add a new mailer configuration in the `mailers` array:
+    
+    ```php
+    'mailers' => [
+        'lettermint' => [
+            'transport' => 'lettermint',
+        ],
+        
+        // ... other mailers
+    ],
+    ```
+  </Step>
+  
+  <Step title="Set as default (optional)">
+    To use Lettermint as your default mailer, update the default setting:
+    
+    ```php
+    'default' => env('MAIL_MAILER', 'lettermint'),
+    ```
+    
+    Or in your `.env` file:
+    
+    ```env
+    MAIL_MAILER=lettermint
+    ```
+  </Step>
+</Steps>
+
+### Using routes
+
+Lettermint routes help you organize your email traffic. You can specify a route ID for each mailer:
+
+```php
+// config/mail.php
+'mailers' => [
+    'lettermint' => [
+        'transport' => 'lettermint',
+        'route_id' => env('LETTERMINT_ROUTE_ID'),
+    ],
+],
+```
+
+Then add the route ID to your `.env`:
+
+```env
+LETTERMINT_ROUTE_ID=your-route-id
+```
+
+### Multiple mailers with different routes
+
+Configure multiple mailers using the same Lettermint transport but with different route IDs:
+
+<CodeGroup>
+```php config/mail.php
+'mailers' => [
+    'lettermint_marketing' => [
+        'transport' => 'lettermint',
+        'route_id' => env('LETTERMINT_MARKETING_ROUTE_ID'),
+    ],
+    'lettermint_transactional' => [
+        'transport' => 'lettermint',
+        'route_id' => env('LETTERMINT_TRANSACTIONAL_ROUTE_ID'),
+    ],
+],
+```
+
+```env .env
+LETTERMINT_MARKETING_ROUTE_ID=marketing-route-id
+LETTERMINT_TRANSACTIONAL_ROUTE_ID=transactional-route-id
+```
+
+```php Usage in application
+use Illuminate\Support\Facades\Mail;
+
+// Send marketing email
+Mail::mailer('lettermint_marketing')
+    ->to($user)
+    ->send(new MarketingEmail());
+
+// Send transactional email
+Mail::mailer('lettermint_transactional')
+    ->to($user)
+    ->send(new TransactionalEmail());
+```
+</CodeGroup>
+
+## Services configuration
+
+Add the Lettermint service to your `config/services.php`:
+
+```php
+return [
+    // ... other services
+    
+    'lettermint' => [
+        'token' => env('LETTERMINT_TOKEN'),
+    ],
+];
+```
+
+## Idempotency configuration
+
+Idempotency prevents duplicate email sends, which is especially useful for queued jobs that might be retried.
+
+### Enable automatic idempotency
+
+Configure idempotency settings in your `config/mail.php` mailer configuration:
+
+```php
+'mailers' => [
+    'lettermint' => [
+        'transport' => 'lettermint',
+        'idempotency' => true, // Enable automatic content-based idempotency
+        'idempotency_window' => 86400, // Window in seconds (default: 24 hours)
+    ],
+],
+```
+
+### Configuration options
+
+<ParamField path="idempotency" type="boolean" default="false">
+  Enable or disable automatic content-based idempotency
+  
+  - `true`: Generates idempotency keys based on email content
+  - `false`: Disables automatic idempotency (user headers still work)
+</ParamField>
+
+<ParamField path="idempotency_window" type="integer" default="86400">
+  Time window in seconds for deduplication
+  
+  - Default: `86400` (24 hours to match Lettermint API retention)
+  - Set to match your needs (e.g., `3600` for 1 hour, `300` for 5 minutes)
+  - When set to `86400` or higher, emails with identical content are permanently deduplicated within the API retention period
+</ParamField>
+
+### How automatic idempotency works
+
+When `idempotency` is `true`, the driver generates a unique key based on:
+
+- Email subject, recipients (to, cc, bcc), and content
+- Sender address (to differentiate between different sending contexts)
+- Time window (if less than 24 hours)
+
+This ensures:
+- Identical emails are only sent once within the configured time window
+- Retried queue jobs won't create duplicate emails
+- Different emails or the same email after the time window will be sent normally
+
+### Per-mailer configuration
+
+You can configure idempotency differently for each mailer:
+
+```php
+'mailers' => [
+    'lettermint_marketing' => [
+        'transport' => 'lettermint',
+        'route_id' => 'marketing',
+        'idempotency' => true, // Enable for marketing emails
+        'idempotency_window' => 86400,
+    ],
+    'lettermint_transactional' => [
+        'transport' => 'lettermint',
+        'route_id' => 'transactional',
+        'idempotency' => false, // Disable for transactional emails
+    ],
+],
+```
+
+<Warning>
+  The `idempotency: false` configuration only disables automatic idempotency. User-provided `Idempotency-Key` headers are always respected, giving you full control on a per-email basis.
+</Warning>
+
+## Webhook configuration
+
+Configure webhooks to receive email delivery events from Lettermint.
+
+### Webhook settings
+
+The webhook configuration is in `config/lettermint.php`:
+
+```php
+'webhooks' => [
+    // Webhook signing secret for verification
+    'secret' => env('LETTERMINT_WEBHOOK_SECRET'),
+    
+    // Route prefix (results in /lettermint/webhook)
+    'prefix' => env('LETTERMINT_WEBHOOK_PREFIX', 'lettermint'),
+    
+    // Timestamp tolerance in seconds (prevents replay attacks)
+    'tolerance' => env('LETTERMINT_WEBHOOK_TOLERANCE', 300),
+],
+```
+
+### Environment variables
+
+Add webhook settings to your `.env` file:
+
+```env
+# Required: Webhook signing secret
+LETTERMINT_WEBHOOK_SECRET=your-webhook-signing-secret
+
+# Optional: Customize webhook endpoint
+LETTERMINT_WEBHOOK_PREFIX=lettermint
+LETTERMINT_WEBHOOK_TOLERANCE=300
+```
+
+### Webhook endpoint
+
+The package automatically registers a webhook endpoint at:
+
+```
+POST /{prefix}/webhook
+```
+
+By default, this is `POST /lettermint/webhook`. Configure this URL in your Lettermint dashboard.
+
+<Info>
+  Learn more about handling webhook events in the [Webhooks guide](/webhooks/setup).
+</Info>
+
+## Configuration options reference
+
+### Lettermint config (`config/lettermint.php`)
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `token` | string | `null` | Your Lettermint API token |
+| `webhooks.secret` | string | `null` | Webhook signing secret for verification |
+| `webhooks.prefix` | string | `lettermint` | Route prefix for webhook endpoint |
+| `webhooks.tolerance` | integer | `300` | Timestamp tolerance in seconds |
+
+### Mail config (`config/mail.php`)
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `transport` | string | - | Must be `lettermint` |
+| `route_id` | string | `null` | Lettermint route ID for this mailer |
+| `idempotency` | boolean | `false` | Enable automatic content-based idempotency |
+| `idempotency_window` | integer | `86400` | Idempotency window in seconds |
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Idempotency" icon="shield-check" href="/features/idempotency">
+    Learn about automatic and custom idempotency keys
+  </Card>
+  
+  <Card title="Webhooks" icon="webhook" href="/webhooks/setup">
+    Handle email delivery events with typed Laravel events
+  </Card>
+  
+  <Card title="Tags and metadata" icon="tag" href="/features/tags-and-metadata">
+    Add tags and metadata for better tracking and analytics
+  </Card>
+  
+  <Card title="Routes" icon="route" href="/features/routes">
+    Organize email traffic with Lettermint routes
+  </Card>
+</CardGroup>

@@ -1,0 +1,180 @@
+---
+title: Introduction
+description: Official Laravel package for Lettermint email service integration
+---
+
+# Introduction to Lettermint Laravel
+
+Lettermint Laravel is the official Laravel package for integrating [Lettermint](https://lettermint.co) email service into your Laravel applications. Send transactional and marketing emails with powerful features like idempotency, routing, webhooks, and comprehensive tracking.
+
+## Quick start
+
+Get started with Lettermint in your Laravel application in just a few steps:
+
+<Steps>
+  <Step title="Install the package">
+    ```bash
+    composer require lettermint/lettermint-laravel
+    ```
+  </Step>
+  
+  <Step title="Configure your API token">
+    Add your Lettermint API token to your `.env` file:
+    ```env
+    LETTERMINT_TOKEN=your-lettermint-token
+    ```
+  </Step>
+  
+  <Step title="Configure the mailer">
+    Add the Lettermint transport to your `config/mail.php` and service to `config/services.php`.
+  </Step>
+  
+  <Step title="Send your first email">
+    ```php
+    use Illuminate\Support\Facades\Mail;
+    
+    Mail::to('user@example.com')
+        ->send(new WelcomeEmail($user));
+    ```
+  </Step>
+</Steps>
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Install the package via Composer and publish the configuration file
+  </Card>
+  
+  <Card title="Configuration" icon="gear" href="/configuration">
+    Configure API tokens, routes, idempotency, and multiple mailers
+  </Card>
+  
+  <Card title="Idempotency" icon="shield-check" href="/features/idempotency">
+    Prevent duplicate emails with automatic or custom idempotency keys
+  </Card>
+  
+  <Card title="Webhooks" icon="webhook" href="/webhooks/setup">
+    Handle email events with automatic signature verification
+  </Card>
+</CardGroup>
+
+## Why Lettermint Laravel?
+
+### Seamless Laravel integration
+
+Lettermint Laravel integrates directly with Laravel's native mail system. Use familiar Laravel mail APIs without changing your existing code:
+
+```php
+use Illuminate\Support\Facades\Mail;
+use App\Mail\OrderConfirmation;
+
+// Works with all Laravel mail features
+Mail::to($user)
+    ->cc('admin@example.com')
+    ->send(new OrderConfirmation($order));
+
+// Use tags and metadata
+Mail::send((new OrderShipped($order))
+    ->tag('transactional')
+    ->metadata('order_id', $order->id)
+);
+
+// Multiple mailers with different routes
+Mail::mailer('lettermint_marketing')
+    ->to($user)
+    ->send(new NewsletterEmail());
+```
+
+### Intelligent idempotency
+
+Prevent duplicate email sends automatically, especially useful for queued jobs that might be retried:
+
+<CodeGroup>
+```php Automatic content-based
+// config/mail.php
+'lettermint' => [
+    'transport' => 'lettermint',
+    'idempotency' => true, // Enable automatic idempotency
+    'idempotency_window' => 86400, // 24 hours
+],
+```
+
+```php Custom idempotency key
+Mail::send('emails.welcome', $data, function ($message) {
+    $message->to('user@example.com')
+        ->subject('Welcome!')
+        ->getHeaders()->addTextHeader('Idempotency-Key', 'welcome-user-123');
+});
+```
+</CodeGroup>
+
+### Route management
+
+Configure multiple mailers with different Lettermint routes for organizing your email traffic:
+
+```php
+// config/mail.php
+'mailers' => [
+    'lettermint_marketing' => [
+        'transport' => 'lettermint',
+        'route_id' => env('LETTERMINT_MARKETING_ROUTE_ID'),
+    ],
+    'lettermint_transactional' => [
+        'transport' => 'lettermint',
+        'route_id' => env('LETTERMINT_TRANSACTIONAL_ROUTE_ID'),
+    ],
+],
+```
+
+### Powerful webhook system
+
+Handle email delivery events with typed Laravel events and automatic signature verification:
+
+```php
+use Lettermint\Laravel\Events\MessageDelivered;
+use Lettermint\Laravel\Events\MessageHardBounced;
+
+Event::listen(MessageDelivered::class, function (MessageDelivered $event) {
+    Log::info('Email delivered', [
+        'message_id' => $event->data->messageId,
+        'recipient' => $event->data->recipient,
+    ]);
+});
+
+Event::listen(MessageHardBounced::class, function (MessageHardBounced $event) {
+    // Handle permanent bounce - disable the recipient
+    User::where('email', $event->data->recipient)
+        ->update(['email_disabled' => true]);
+});
+```
+
+### Enhanced tracking
+
+Add tags and metadata to your emails for better organization and analytics:
+
+```php
+Mail::send((new OrderConfirmation($order))
+    ->tag('orders')
+    ->metadata('order_id', $order->id)
+    ->metadata('customer_id', $order->customer_id)
+    ->metadata('order_total', $order->total)
+);
+```
+
+## Requirements
+
+- PHP 8.2 or higher
+- Laravel 9 or higher
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Installation guide" icon="download" href="/installation">
+    Install the package and publish the configuration file
+  </Card>
+  
+  <Card title="Configuration guide" icon="gear" href="/configuration">
+    Set up API tokens, routes, and configure advanced features
+  </Card>
+</CardGroup>

@@ -1,0 +1,189 @@
+---
+title: Route-based email sending
+description: Configure and use Lettermint routes to control how emails are delivered through different providers
+---
+
+Routes in Lettermint allow you to control which email provider (SMTP, API, etc.) is used to send your emails. You can configure different routes for different types of emails, such as transactional vs. marketing emails.
+
+## Configuring a route
+
+Add the `route_id` option to your mailer configuration in `config/mail.php`:
+
+```php
+'mailers' => [
+    'lettermint' => [
+        'transport' => 'lettermint',
+        'route_id' => env('LETTERMINT_ROUTE_ID'),
+    ],
+],
+```
+
+Then set the route ID in your `.env` file:
+
+```env
+LETTERMINT_ROUTE_ID=your-route-id
+```
+
+<Info>
+  Find your route IDs in the Lettermint dashboard under Routes. Each route represents a specific email delivery configuration.
+</Info>
+
+## Multiple mailers with different routes
+
+You can configure multiple mailers using the same Lettermint transport but with different routes. This is useful for separating transactional emails from marketing emails:
+
+```php
+// config/mail.php
+'mailers' => [
+    'lettermint_marketing' => [
+        'transport' => 'lettermint',
+        'route_id' => env('LETTERMINT_MARKETING_ROUTE_ID'),
+    ],
+    'lettermint_transactional' => [
+        'transport' => 'lettermint',
+        'route_id' => env('LETTERMINT_TRANSACTIONAL_ROUTE_ID'),
+    ],
+],
+```
+
+Then in your `.env` file:
+
+```env
+LETTERMINT_MARKETING_ROUTE_ID=route-marketing-123
+LETTERMINT_TRANSACTIONAL_ROUTE_ID=route-transactional-456
+```
+
+## Using different mailers
+
+Send emails through specific routes using the `mailer()` method:
+
+```php
+use Illuminate\Support\Facades\Mail;
+use App\Mail\MarketingEmail;
+use App\Mail\TransactionalEmail;
+
+// Send through marketing route
+Mail::mailer('lettermint_marketing')
+    ->to($user)
+    ->send(new MarketingEmail());
+
+// Send through transactional route
+Mail::mailer('lettermint_transactional')
+    ->to($user)
+    ->send(new TransactionalEmail());
+```
+
+## Route selection strategy
+
+<Steps>
+
+<Step title="Check mailer configuration">
+  The driver first checks if a `route_id` is configured for the specific mailer being used.
+</Step>
+
+<Step title="Use configured route">
+  If a route ID is configured, the email is sent through that route.
+</Step>
+
+<Step title="Use default route">
+  If no route ID is configured, Lettermint uses your account's default route.
+</Step>
+
+</Steps>
+
+## Example: Separate routes for different email types
+
+Here's a complete example showing how to organize your email routing:
+
+<Tabs>
+  <Tab title="Configuration">
+    ```php
+    // config/mail.php
+    return [
+        'default' => env('MAIL_MAILER', 'lettermint_transactional'),
+        
+        'mailers' => [
+            'lettermint_transactional' => [
+                'transport' => 'lettermint',
+                'route_id' => env('LETTERMINT_TRANSACTIONAL_ROUTE_ID'),
+            ],
+            'lettermint_marketing' => [
+                'transport' => 'lettermint',
+                'route_id' => env('LETTERMINT_MARKETING_ROUTE_ID'),
+            ],
+            'lettermint_notifications' => [
+                'transport' => 'lettermint',
+                'route_id' => env('LETTERMINT_NOTIFICATIONS_ROUTE_ID'),
+            ],
+        ],
+    ];
+    ```
+  </Tab>
+  <Tab title="Environment Variables">
+    ```env
+    LETTERMINT_TOKEN=your-api-token
+    LETTERMINT_TRANSACTIONAL_ROUTE_ID=route-txn-abc123
+    LETTERMINT_MARKETING_ROUTE_ID=route-mkt-def456
+    LETTERMINT_NOTIFICATIONS_ROUTE_ID=route-ntf-ghi789
+    ```
+  </Tab>
+  <Tab title="Usage">
+    ```php
+    use Illuminate\Support\Facades\Mail;
+    
+    // Transactional emails (password resets, order confirmations)
+    Mail::mailer('lettermint_transactional')
+        ->to($user)
+        ->send(new OrderConfirmation($order));
+    
+    // Marketing emails (newsletters, promotions)
+    Mail::mailer('lettermint_marketing')
+        ->to($subscribers)
+        ->send(new WeeklyNewsletter());
+    
+    // System notifications (alerts, reports)
+    Mail::mailer('lettermint_notifications')
+        ->to($admins)
+        ->send(new SystemAlert($issue));
+    ```
+  </Tab>
+</Tabs>
+
+## Default mailer behavior
+
+If you don't specify a mailer, Laravel uses the default mailer from your `config/mail.php`:
+
+```php
+// Uses default mailer from config/mail.php
+Mail::to($user)->send(new WelcomeEmail());
+
+// Explicitly uses a specific mailer
+Mail::mailer('lettermint_marketing')->to($user)->send(new WelcomeEmail());
+```
+
+<Warning>
+  Make sure each route ID exists in your Lettermint dashboard before using it in your configuration. Invalid route IDs will cause email delivery to fail.
+</Warning>
+
+## Testing route configuration
+
+You can verify your route configuration using the transport's config:
+
+```php
+use Illuminate\Mail\MailManager;
+use ReflectionClass;
+
+$manager = app(MailManager::class);
+$transport = $manager->createSymfonyTransport([
+    'transport' => 'lettermint',
+    'route_id' => 'test-route-123',
+]);
+
+// Access the config to verify route_id
+$reflection = new ReflectionClass($transport);
+$configProperty = $reflection->getProperty('config');
+$configProperty->setAccessible(true);
+$config = $configProperty->getValue($transport);
+
+echo $config['route_id']; // Outputs: test-route-123
+```

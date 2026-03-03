@@ -1,0 +1,329 @@
+---
+title: Handling Webhook Events
+description: Learn how to listen to and process Lettermint webhook events in your Laravel application
+---
+
+The Lettermint Laravel package dispatches native Laravel events for each webhook type, making it easy to handle email events using Laravel's event system.
+
+## Event Service Provider
+
+Register event listeners in your `EventServiceProvider` to handle specific webhook events:
+
+```php
+use Lettermint\Laravel\Events\MessageDelivered;
+use Lettermint\Laravel\Events\MessageHardBounced;
+use Lettermint\Laravel\Events\MessageSpamComplaint;
+use App\Listeners\HandleEmailDelivered;
+use App\Listeners\HandleEmailBounced;
+
+protected $listen = [
+    MessageDelivered::class => [
+        HandleEmailDelivered::class,
+    ],
+    MessageHardBounced::class => [
+        HandleEmailBounced::class,
+    ],
+    MessageSpamComplaint::class => [
+        HandleSpamComplaint::class,
+    ],
+];
+```
+
+## Closure-Based Listeners
+
+For simple event handling, you can use closure-based listeners in your `AppServiceProvider` or a dedicated service provider:
+
+```php
+use Lettermint\Laravel\Events\MessageDelivered;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
+
+public function boot(): void
+{
+    Event::listen(MessageDelivered::class, function (MessageDelivered $event) {
+        Log::info('Email delivered', [
+            'message_id' => $event->data->messageId,
+            'recipient' => $event->data->recipient,
+            'status_code' => $event->data->response->statusCode,
+        ]);
+    });
+}
+```
+
+## Common Use Cases
+
+### Tracking Email Delivery
+
+Update your database when emails are successfully delivered:
+
+```php
+use Lettermint\Laravel\Events\MessageDelivered;
+use Illuminate\Support\Facades\Event;
+
+Event::listen(MessageDelivered::class, function (MessageDelivered $event) {
+    // Update email tracking record
+    \DB::table('email_logs')
+        ->where('message_id', $event->data->messageId)
+        ->update([
+            'status' => 'delivered',
+            'delivered_at' => now(),
+            'response_code' => $event->data->response->statusCode,
+        ]);
+});
+```
+
+### Handling Hard Bounces
+
+Disable recipients who hard bounce to maintain list hygiene:
+
+```php
+use Lettermint\Laravel\Events\MessageHardBounced;
+use Illuminate\Support\Facades\Event;
+use App\Models\User;
+
+Event::listen(MessageHardBounced::class, function (MessageHardBounced $event) {
+    // Mark recipient as bounced
+    $recipient = $event->data->recipient;
+    $reason = $event->data->response->content;
+    
+    User::where('email', $recipient)->update([
+        'email_verified' => false,
+        'email_bounce_reason' => $reason,
+        'bounced_at' => now(),
+    ]);
+    
+    Log::warning('Hard bounce received', [
+        'recipient' => $recipient,
+        'reason' => $reason,
+    ]);
+});
+```
+
+<Warning>
+  Always handle hard bounces by removing or disabling the recipient. Continuing to send to hard-bounced addresses can damage your sender reputation.
+</Warning>
+
+### Processing Spam Complaints
+
+Automatically unsubscribe users who mark emails as spam:
+
+```php
+use Lettermint\Laravel\Events\MessageSpamComplaint;
+use Illuminate\Support\Facades\Event;
+use App\Models\User;
+
+Event::listen(MessageSpamComplaint::class, function (MessageSpamComplaint $event) {
+    $recipient = $event->data->recipient;
+    
+    User::where('email', $recipient)->update([
+        'unsubscribed' => true,
+        'unsubscribed_reason' => 'spam_complaint',
+        'unsubscribed_at' => now(),
+    ]);
+    
+    Log::warning('Spam complaint received', [
+        'recipient' => $recipient,
+        'message_id' => $event->data->messageId,
+    ]);
+});
+```
+
+### Handling Unsubscribes
+
+Process unsubscribe events to respect user preferences:
+
+```php
+use Lettermint\Laravel\Events\MessageUnsubscribed;
+use Illuminate\Support\Facades\Event;
+use App\Models\User;
+
+Event::listen(MessageUnsubscribed::class, function (MessageUnsubscribed $event) {
+    User::where('email', $event->data->recipient)->update([
+        'unsubscribed' => true,
+        'unsubscribed_at' => now(),
+    ]);
+});
+```
+
+### Processing Inbound Emails
+
+Handle incoming emails sent to your routes:
+
+```php
+use Lettermint\Laravel\Events\MessageInbound;
+use Illuminate\Support\Facades\Event;
+use App\Models\SupportTicket;
+
+Event::listen(MessageInbound::class, function (MessageInbound $event) {
+    // Create support ticket from inbound email
+    SupportTicket::create([
+        'from' => $event->data->from->email,
+        'subject' => $event->data->subject,
+        'body' => $event->data->body->plain ?? $event->data->body->html,
+        'message_id' => $event->data->messageId,
+        'attachments' => $event->data->attachments,
+        'is_spam' => $event->data->isSpam,
+    ]);
+});
+```
+
+## Using Metadata for Context
+
+Access custom metadata attached to your emails:
+
+```php
+use Lettermint\Laravel\Events\MessageDelivered;
+use Illuminate\Support\Facades\Event;
+
+Event::listen(MessageDelivered::class, function (MessageDelivered $event) {
+    $metadata = $event->data->metadata;
+    
+    // Access custom data you attached when sending
+    $orderId = $metadata['order_id'] ?? null;
+    $customerId = $metadata['customer_id'] ?? null;
+    
+    if ($orderId) {
+        // Update order notification status
+        \DB::table('orders')
+            ->where('id', $orderId)
+            ->update(['notification_sent' => true]);
+    }
+});
+```
+
+## Using Tags for Filtering
+
+Filter events by tags to handle different email types:
+
+```php
+use Lettermint\Laravel\Events\MessageDelivered;
+use Illuminate\Support\Facades\Event;
+
+Event::listen(MessageDelivered::class, function (MessageDelivered $event) {
+    // Only process transactional emails
+    if ($event->data->tag === 'transactional') {
+        // Handle transactional email delivery
+    }
+    
+    // Only process marketing emails
+    if ($event->data->tag === 'marketing') {
+        // Handle marketing email delivery
+    }
+});
+```
+
+## Categorizing Events
+
+Use the helper methods to handle groups of related events:
+
+```php
+use Lettermint\Laravel\Events\LettermintWebhookEvent;
+use Illuminate\Support\Facades\Event;
+
+Event::listen(LettermintWebhookEvent::class, function (LettermintWebhookEvent $event) {
+    // Handle all bounce events
+    if ($event->getEnvelope()->event->isBounce()) {
+        Log::warning('Email bounced', [
+            'type' => $event->getEnvelope()->event->value,
+            'recipient' => $event->data->recipient,
+        ]);
+    }
+    
+    // Handle all delivery issues
+    if ($event->getEnvelope()->event->isDeliveryIssue()) {
+        // Send alert to monitoring system
+        // Consider pausing email sends to this recipient
+    }
+});
+```
+
+## Creating Event Listeners
+
+For more complex logic, create dedicated listener classes:
+
+```bash
+php artisan make:listener HandleEmailDelivered
+```
+
+Then implement the listener:
+
+```php
+namespace App\Listeners;
+
+use Lettermint\Laravel\Events\MessageDelivered;
+use App\Models\EmailLog;
+
+class HandleEmailDelivered
+{
+    public function handle(MessageDelivered $event): void
+    {
+        EmailLog::create([
+            'message_id' => $event->data->messageId,
+            'recipient' => $event->data->recipient,
+            'status' => 'delivered',
+            'status_code' => $event->data->response->statusCode,
+            'metadata' => $event->data->metadata,
+            'tag' => $event->data->tag,
+            'delivered_at' => $event->envelope->timestamp,
+        ]);
+    }
+}
+```
+
+## Queued Event Listeners
+
+For expensive operations, implement the `ShouldQueue` interface:
+
+```php
+namespace App\Listeners;
+
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Lettermint\Laravel\Events\MessageDelivered;
+use App\Services\AnalyticsService;
+
+class TrackEmailDelivery implements ShouldQueue
+{
+    public function __construct(
+        private AnalyticsService $analytics
+    ) {}
+    
+    public function handle(MessageDelivered $event): void
+    {
+        // This will run in the background
+        $this->analytics->trackDelivery(
+            $event->data->messageId,
+            $event->data->recipient,
+            $event->data->metadata
+        );
+    }
+}
+```
+
+<Note>
+  Queued listeners are processed asynchronously, so they won't slow down webhook processing. Make sure your queue worker is running.
+</Note>
+
+## Testing Event Handlers
+
+Test your event listeners using Laravel's event faking:
+
+```php
+use Illuminate\Support\Facades\Event;
+use Lettermint\Laravel\Events\MessageDelivered;
+use Tests\TestCase;
+
+class EmailEventTest extends TestCase
+{
+    public function test_handles_delivered_event(): void
+    {
+        Event::fake();
+        
+        // Trigger your webhook endpoint or dispatch event directly
+        event(new MessageDelivered($envelope, $data));
+        
+        Event::assertDispatched(MessageDelivered::class, function ($event) {
+            return $event->data->recipient === 'user@example.com';
+        });
+    }
+}
+```

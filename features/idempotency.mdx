@@ -1,0 +1,273 @@
+---
+title: Idempotency support
+description: Prevent duplicate email sends with automatic and custom idempotency keys
+---
+
+The Lettermint Laravel driver prevents duplicate email sends by using idempotency keys. This is especially useful when emails are sent from queued jobs that might be retried.
+
+## How idempotency works
+
+When an email is sent with an idempotency key, Lettermint checks if an email with the same key was already sent within a specific time window. If it was, the duplicate send is prevented.
+
+<Info>
+  Idempotency is particularly important for queued emails. If a queue job fails and is retried, idempotency ensures the email is only sent once.
+</Info>
+
+## Configuration options
+
+Configure idempotency behavior per mailer in your `config/mail.php`:
+
+```php
+'mailers' => [
+    'lettermint' => [
+        'transport' => 'lettermint',
+        'idempotency' => true, // Enable automatic content-based idempotency
+        'idempotency_window' => 86400, // Window in seconds (default: 24 hours)
+    ],
+    'lettermint_marketing' => [
+        'transport' => 'lettermint',
+        'route_id' => 'marketing',
+        'idempotency' => false, // Disable automatic idempotency
+    ],
+],
+```
+
+### Available options
+
+<ResponseField name="idempotency" type="boolean" default="false">
+  Enable or disable automatic content-based idempotency.
+  
+  - `true`: Generates idempotency keys based on email content
+  - `false`: Disables automatic idempotency (custom headers still work)
+</ResponseField>
+
+<ResponseField name="idempotency_window" type="integer" default="86400">
+  Time window in seconds for deduplication.
+  
+  - Default: `86400` (24 hours to match Lettermint API retention)
+  - Example: `3600` for 1 hour, `300` for 5 minutes
+  - When set to `86400` or higher, emails with identical content are permanently deduplicated within the API retention period
+</ResponseField>
+
+## Automatic idempotency
+
+When `idempotency` is set to `true`, the driver automatically generates a unique key based on:
+
+- Email subject, recipients (to, cc, bcc), and content
+- Sender address (to differentiate between different sending contexts)
+- Time window (if less than 24 hours)
+
+This ensures:
+- Identical emails are only sent once within the configured time window
+- Retried queue jobs won't create duplicate emails
+- Different emails or the same email after the time window will be sent normally
+
+### Example with automatic idempotency
+
+```php
+// config/mail.php
+'lettermint' => [
+    'transport' => 'lettermint',
+    'idempotency' => true,
+    'idempotency_window' => 86400, // 24 hours
+],
+```
+
+```php
+use Illuminate\Support\Facades\Mail;
+use App\Mail\WelcomeEmail;
+
+// First send - email is sent
+Mail::to('user@example.com')->send(new WelcomeEmail($user));
+
+// Second send within 24 hours - prevented by idempotency
+Mail::to('user@example.com')->send(new WelcomeEmail($user));
+```
+
+## Custom idempotency keys
+
+You can override any configuration by setting a custom idempotency key in the email headers:
+
+```php
+Mail::send('emails.welcome', $data, function ($message) {
+    $message->to('user@example.com')
+        ->subject('Welcome!')
+        ->getHeaders()->addTextHeader('Idempotency-Key', 'welcome-user-123');
+});
+```
+
+<Note>
+  Custom `Idempotency-Key` headers are always respected, even when automatic idempotency is disabled.
+</Note>
+
+## Priority order
+
+The driver uses idempotency keys in the following priority order:
+
+<Steps>
+
+<Step title="Custom Idempotency-Key header (highest priority)">
+  If the email has an `Idempotency-Key` header, it's always used regardless of configuration.
+  
+  ```php
+  $email->getHeaders()->addHeader('Idempotency-Key', 'custom-key-123');
+  ```
+</Step>
+
+<Step title="Automatic content-based key">
+  If `idempotency` is `true` in the config, an automatic key is generated from the email content.
+  
+  ```php
+  'idempotency' => true,
+  ```
+</Step>
+
+<Step title="No idempotency (lowest priority)">
+  If `idempotency` is `false` and no custom header is provided, no idempotency key is used.
+  
+  ```php
+  'idempotency' => false,
+  ```
+</Step>
+
+</Steps>
+
+## Idempotency windows
+
+The `idempotency_window` determines how long emails are deduplicated:
+
+<Tabs>
+  <Tab title="24 hours (default)">
+    ```php
+    'lettermint' => [
+        'transport' => 'lettermint',
+        'idempotency' => true,
+        'idempotency_window' => 86400, // 24 hours
+    ],
+    ```
+    
+    With a 24-hour window, emails with identical content are permanently deduplicated within the API retention period.
+  </Tab>
+  <Tab title="1 hour">
+    ```php
+    'lettermint' => [
+        'transport' => 'lettermint',
+        'idempotency' => true,
+        'idempotency_window' => 3600, // 1 hour
+    ],
+    ```
+    
+    The same email can be sent again after 1 hour. The idempotency key includes a timestamp component.
+  </Tab>
+  <Tab title="5 minutes">
+    ```php
+    'lettermint' => [
+        'transport' => 'lettermint',
+        'idempotency' => true,
+        'idempotency_window' => 300, // 5 minutes
+    ],
+    ```
+    
+    Useful for high-frequency emails where you want short-term deduplication.
+  </Tab>
+</Tabs>
+
+<Warning>
+  When `idempotency_window` is less than 24 hours, the automatic key includes a timestamp component. This means the same email content will generate different keys in different time windows.
+</Warning>
+
+## Per-email idempotency
+
+You can control idempotency on a per-email basis using custom headers, even when automatic idempotency is disabled:
+
+```php
+use Symfony\Component\Mime\Email;
+
+$email = (new Email)
+    ->from('from@example.com')
+    ->to('to@example.com')
+    ->subject('Order Confirmation')
+    ->text('Your order has been confirmed.');
+
+// Add custom idempotency key
+$email->getHeaders()->addHeader('Idempotency-Key', 'order-' . $order->id);
+```
+
+This ensures that even if the email sending code is called multiple times for the same order, only one email is sent.
+
+## Idempotency with queued emails
+
+When sending emails from queued jobs, idempotency prevents duplicates if the job is retried:
+
+```php
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\OrderShipped;
+
+class SendOrderShippedEmail implements ShouldQueue
+{
+    use Queueable;
+
+    public $tries = 3; // Retry up to 3 times
+
+    public function __construct(
+        public Order $order
+    ) {}
+
+    public function handle()
+    {
+        // Even if this job is retried, the email is only sent once
+        // when idempotency is enabled
+        Mail::to($this->order->customer->email)
+            ->send(new OrderShipped($this->order));
+    }
+}
+```
+
+<Info>
+  With automatic idempotency enabled, the same email content will generate the same key across job retries, preventing duplicates.
+</Info>
+
+## Testing idempotency
+
+You can test idempotency behavior in your application:
+
+```php
+use Tests\TestCase;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\WelcomeEmail;
+
+class IdempotencyTest extends TestCase
+{
+    public function test_prevents_duplicate_emails()
+    {
+        Mail::fake();
+        
+        $user = User::factory()->create();
+        
+        // Send email twice
+        Mail::to($user->email)->send(new WelcomeEmail($user));
+        Mail::to($user->email)->send(new WelcomeEmail($user));
+        
+        // With idempotency enabled, only one email should be queued
+        Mail::assertSent(WelcomeEmail::class, 1);
+    }
+}
+```
+
+## Disabling idempotency
+
+To disable automatic idempotency for a specific mailer:
+
+```php
+'lettermint_marketing' => [
+    'transport' => 'lettermint',
+    'route_id' => 'marketing',
+    'idempotency' => false, // Disable automatic idempotency
+],
+```
+
+<Note>
+  Even with `idempotency: false`, custom `Idempotency-Key` headers in emails are always respected, giving you full control on a per-email basis.
+</Note>

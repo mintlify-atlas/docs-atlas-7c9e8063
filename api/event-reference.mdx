@@ -1,0 +1,791 @@
+---
+title: Event Reference
+description: Complete reference for all webhook events and their properties
+---
+
+This page provides a comprehensive reference for all webhook events dispatched by the Lettermint Laravel package.
+
+## Event Overview
+
+All webhook events extend the `LettermintWebhookEvent` base class and contain two main properties:
+
+- `envelope` - Metadata about the webhook event itself
+- `data` - Event-specific data payload
+
+## Event Types
+
+The following table lists all available webhook event types and their corresponding event classes:
+
+| Event Type | Event Class | Description |
+|------------|-------------|-------------|
+| `message.created` | `MessageCreated` | Fired when a new email message is created |
+| `message.sent` | `MessageSent` | Fired when a message is successfully sent to the recipient's server |
+| `message.delivered` | `MessageDelivered` | Fired when a message is confirmed delivered to the recipient |
+| `message.hard_bounced` | `MessageHardBounced` | Fired when a message permanently bounces |
+| `message.soft_bounced` | `MessageSoftBounced` | Fired when a message temporarily bounces |
+| `message.spam_complaint` | `MessageSpamComplaint` | Fired when a recipient marks a message as spam |
+| `message.failed` | `MessageFailed` | Fired when a message fails to send |
+| `message.suppressed` | `MessageSuppressed` | Fired when a message is suppressed due to suppression list |
+| `message.unsubscribed` | `MessageUnsubscribed` | Fired when a recipient unsubscribes |
+| `message.inbound` | `MessageInbound` | Fired when an inbound email is received |
+| `webhook.test` | `WebhookTest` | Test event for webhook verification |
+
+## Common Properties
+
+### WebhookEnvelope
+
+All events include an `envelope` property containing metadata about the webhook event.
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for this webhook event.
+</ResponseField>
+
+<ResponseField name="event" type="WebhookEventType" required>
+  The type of webhook event (e.g., `message.sent`, `message.delivered`).
+</ResponseField>
+
+<ResponseField name="timestamp" type="DateTimeImmutable" required>
+  ISO 8601 timestamp when the event occurred.
+</ResponseField>
+
+## Event Classes
+
+### MessageCreated
+
+**Namespace:** `Lettermint\Laravel\Events\MessageCreated`
+
+**Triggered when:** A new email message is created in Lettermint.
+
+#### Properties
+
+<ResponseField name="envelope" type="WebhookEnvelope" required>
+  Event metadata.
+</ResponseField>
+
+<ResponseField name="data" type="MessageCreatedData" required>
+  <Expandable title="properties">
+    <ResponseField name="messageId" type="string" required>
+      Unique identifier for the email message.
+    </ResponseField>
+    
+    <ResponseField name="from" type="EmailAddress" required>
+      Sender email address.
+      
+      <Expandable title="properties">
+        <ResponseField name="email" type="string" required>
+          Email address.
+        </ResponseField>
+        
+        <ResponseField name="name" type="string|null">
+          Display name.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="to" type="array<string>" required>
+      Array of recipient email addresses.
+    </ResponseField>
+    
+    <ResponseField name="cc" type="array<string>" required>
+      Array of CC email addresses.
+    </ResponseField>
+    
+    <ResponseField name="bcc" type="array<string>" required>
+      Array of BCC email addresses.
+    </ResponseField>
+    
+    <ResponseField name="replyTo" type="array<string>" required>
+      Array of reply-to email addresses.
+    </ResponseField>
+    
+    <ResponseField name="subject" type="string" required>
+      Email subject line.
+    </ResponseField>
+    
+    <ResponseField name="metadata" type="array<string, mixed>" required>
+      Custom metadata attached to the message.
+    </ResponseField>
+    
+    <ResponseField name="tag" type="string|null">
+      Optional tag for categorizing the message.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+#### Example
+
+```php
+use Lettermint\Laravel\Events\MessageCreated;
+
+Event::listen(MessageCreated::class, function (MessageCreated $event) {
+    $messageId = $event->data->messageId;
+    $recipient = $event->data->to[0];
+    $subject = $event->data->subject;
+    
+    Log::info("Message {$messageId} created: {$subject}");
+});
+```
+
+---
+
+### MessageSent
+
+**Namespace:** `Lettermint\Laravel\Events\MessageSent`
+
+**Triggered when:** A message is successfully sent to the recipient's mail server.
+
+#### Properties
+
+<ResponseField name="envelope" type="WebhookEnvelope" required>
+  Event metadata.
+</ResponseField>
+
+<ResponseField name="data" type="MessageSentData" required>
+  <Expandable title="properties">
+    <ResponseField name="messageId" type="string" required>
+      Unique identifier for the email message.
+    </ResponseField>
+    
+    <ResponseField name="recipient" type="string" required>
+      Email address of the recipient.
+    </ResponseField>
+    
+    <ResponseField name="metadata" type="array<string, mixed>" required>
+      Custom metadata attached to the message.
+    </ResponseField>
+    
+    <ResponseField name="tag" type="string|null">
+      Optional tag for categorizing the message.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+### MessageDelivered
+
+**Namespace:** `Lettermint\Laravel\Events\MessageDelivered`
+
+**Triggered when:** A message is confirmed delivered to the recipient.
+
+#### Properties
+
+<ResponseField name="envelope" type="WebhookEnvelope" required>
+  Event metadata.
+</ResponseField>
+
+<ResponseField name="data" type="MessageDeliveredData" required>
+  <Expandable title="properties">
+    <ResponseField name="messageId" type="string" required>
+      Unique identifier for the email message.
+    </ResponseField>
+    
+    <ResponseField name="recipient" type="string" required>
+      Email address of the recipient.
+    </ResponseField>
+    
+    <ResponseField name="response" type="ServerResponse" required>
+      Response from the recipient's mail server.
+      
+      <Expandable title="properties">
+        <ResponseField name="statusCode" type="integer" required>
+          SMTP status code (e.g., 250).
+        </ResponseField>
+        
+        <ResponseField name="enhancedStatusCode" type="string|null">
+          Enhanced status code (e.g., "2.0.0").
+        </ResponseField>
+        
+        <ResponseField name="content" type="string|null">
+          Response message from the server.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="metadata" type="array<string, mixed>" required>
+      Custom metadata attached to the message.
+    </ResponseField>
+    
+    <ResponseField name="tag" type="string|null">
+      Optional tag for categorizing the message.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+### MessageFailed
+
+**Namespace:** `Lettermint\Laravel\Events\MessageFailed`
+
+**Triggered when:** A message fails to send.
+
+#### Properties
+
+<ResponseField name="envelope" type="WebhookEnvelope" required>
+  Event metadata.
+</ResponseField>
+
+<ResponseField name="data" type="MessageFailedData" required>
+  <Expandable title="properties">
+    <ResponseField name="messageId" type="string" required>
+      Unique identifier for the email message.
+    </ResponseField>
+    
+    <ResponseField name="recipient" type="string" required>
+      Email address of the recipient.
+    </ResponseField>
+    
+    <ResponseField name="reason" type="string" required>
+      Reason for the failure.
+    </ResponseField>
+    
+    <ResponseField name="response" type="ServerResponse" required>
+      Response from the recipient's mail server.
+      
+      <Expandable title="properties">
+        <ResponseField name="statusCode" type="integer" required>
+          SMTP status code.
+        </ResponseField>
+        
+        <ResponseField name="enhancedStatusCode" type="string|null">
+          Enhanced status code.
+        </ResponseField>
+        
+        <ResponseField name="content" type="string|null">
+          Response message from the server.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="metadata" type="array<string, mixed>" required>
+      Custom metadata attached to the message.
+    </ResponseField>
+    
+    <ResponseField name="tag" type="string|null">
+      Optional tag for categorizing the message.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+### MessageHardBounced
+
+**Namespace:** `Lettermint\Laravel\Events\MessageHardBounced`
+
+**Triggered when:** A message permanently bounces (e.g., invalid email address).
+
+#### Properties
+
+<ResponseField name="envelope" type="WebhookEnvelope" required>
+  Event metadata.
+</ResponseField>
+
+<ResponseField name="data" type="MessageHardBouncedData" required>
+  <Expandable title="properties">
+    <ResponseField name="messageId" type="string" required>
+      Unique identifier for the email message.
+    </ResponseField>
+    
+    <ResponseField name="recipient" type="string" required>
+      Email address of the recipient.
+    </ResponseField>
+    
+    <ResponseField name="response" type="ServerResponse" required>
+      Response from the recipient's mail server.
+      
+      <Expandable title="properties">
+        <ResponseField name="statusCode" type="integer" required>
+          SMTP status code.
+        </ResponseField>
+        
+        <ResponseField name="enhancedStatusCode" type="string|null">
+          Enhanced status code.
+        </ResponseField>
+        
+        <ResponseField name="content" type="string|null">
+          Response message from the server.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="metadata" type="array<string, mixed>" required>
+      Custom metadata attached to the message.
+    </ResponseField>
+    
+    <ResponseField name="tag" type="string|null">
+      Optional tag for categorizing the message.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<Note>
+  Hard bounces typically indicate permanent delivery issues and the recipient should be removed from your mailing list.
+</Note>
+
+---
+
+### MessageSoftBounced
+
+**Namespace:** `Lettermint\Laravel\Events\MessageSoftBounced`
+
+**Triggered when:** A message temporarily bounces (e.g., mailbox full).
+
+#### Properties
+
+<ResponseField name="envelope" type="WebhookEnvelope" required>
+  Event metadata.
+</ResponseField>
+
+<ResponseField name="data" type="MessageSoftBouncedData" required>
+  <Expandable title="properties">
+    <ResponseField name="messageId" type="string" required>
+      Unique identifier for the email message.
+    </ResponseField>
+    
+    <ResponseField name="recipient" type="string" required>
+      Email address of the recipient.
+    </ResponseField>
+    
+    <ResponseField name="response" type="ServerResponse" required>
+      Response from the recipient's mail server.
+      
+      <Expandable title="properties">
+        <ResponseField name="statusCode" type="integer" required>
+          SMTP status code.
+        </ResponseField>
+        
+        <ResponseField name="enhancedStatusCode" type="string|null">
+          Enhanced status code.
+        </ResponseField>
+        
+        <ResponseField name="content" type="string|null">
+          Response message from the server.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="metadata" type="array<string, mixed>" required>
+      Custom metadata attached to the message.
+    </ResponseField>
+    
+    <ResponseField name="tag" type="string|null">
+      Optional tag for categorizing the message.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<Note>
+  Soft bounces are temporary issues. Lettermint will automatically retry delivery.
+</Note>
+
+---
+
+### MessageSpamComplaint
+
+**Namespace:** `Lettermint\Laravel\Events\MessageSpamComplaint`
+
+**Triggered when:** A recipient marks a message as spam.
+
+#### Properties
+
+<ResponseField name="envelope" type="WebhookEnvelope" required>
+  Event metadata.
+</ResponseField>
+
+<ResponseField name="data" type="MessageSpamComplaintData" required>
+  <Expandable title="properties">
+    <ResponseField name="messageId" type="string" required>
+      Unique identifier for the email message.
+    </ResponseField>
+    
+    <ResponseField name="recipient" type="string" required>
+      Email address of the recipient who reported spam.
+    </ResponseField>
+    
+    <ResponseField name="metadata" type="array<string, mixed>" required>
+      Custom metadata attached to the message.
+    </ResponseField>
+    
+    <ResponseField name="tag" type="string|null">
+      Optional tag for categorizing the message.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<Warning>
+  Spam complaints should be taken seriously. Consider removing the recipient from your mailing list.
+</Warning>
+
+---
+
+### MessageSuppressed
+
+**Namespace:** `Lettermint\Laravel\Events\MessageSuppressed`
+
+**Triggered when:** A message is suppressed due to the recipient being on a suppression list.
+
+#### Properties
+
+<ResponseField name="envelope" type="WebhookEnvelope" required>
+  Event metadata.
+</ResponseField>
+
+<ResponseField name="data" type="MessageSuppressedData" required>
+  <Expandable title="properties">
+    <ResponseField name="messageId" type="string" required>
+      Unique identifier for the email message.
+    </ResponseField>
+    
+    <ResponseField name="recipient" type="string" required>
+      Email address of the recipient.
+    </ResponseField>
+    
+    <ResponseField name="reason" type="string" required>
+      Reason for suppression (e.g., "hard_bounce", "spam_complaint", "unsubscribe").
+    </ResponseField>
+    
+    <ResponseField name="metadata" type="array<string, mixed>" required>
+      Custom metadata attached to the message.
+    </ResponseField>
+    
+    <ResponseField name="tag" type="string|null">
+      Optional tag for categorizing the message.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+### MessageUnsubscribed
+
+**Namespace:** `Lettermint\Laravel\Events\MessageUnsubscribed`
+
+**Triggered when:** A recipient unsubscribes from emails.
+
+#### Properties
+
+<ResponseField name="envelope" type="WebhookEnvelope" required>
+  Event metadata.
+</ResponseField>
+
+<ResponseField name="data" type="MessageUnsubscribedData" required>
+  <Expandable title="properties">
+    <ResponseField name="messageId" type="string" required>
+      Unique identifier for the email message.
+    </ResponseField>
+    
+    <ResponseField name="recipient" type="string" required>
+      Email address of the recipient who unsubscribed.
+    </ResponseField>
+    
+    <ResponseField name="unsubscribedAt" type="DateTimeImmutable" required>
+      Timestamp when the recipient unsubscribed.
+    </ResponseField>
+    
+    <ResponseField name="metadata" type="array<string, mixed>" required>
+      Custom metadata attached to the message.
+    </ResponseField>
+    
+    <ResponseField name="tag" type="string|null">
+      Optional tag for categorizing the message.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+### MessageInbound
+
+**Namespace:** `Lettermint\Laravel\Events\MessageInbound`
+
+**Triggered when:** An inbound email is received at a Lettermint route.
+
+#### Properties
+
+<ResponseField name="envelope" type="WebhookEnvelope" required>
+  Event metadata.
+</ResponseField>
+
+<ResponseField name="data" type="MessageInboundData" required>
+  <Expandable title="properties">
+    <ResponseField name="route" type="string" required>
+      The route identifier that received this inbound email.
+    </ResponseField>
+    
+    <ResponseField name="messageId" type="string" required>
+      Unique identifier for the inbound message.
+    </ResponseField>
+    
+    <ResponseField name="from" type="InboundEmailAddress" required>
+      Sender email address.
+      
+      <Expandable title="properties">
+        <ResponseField name="email" type="string" required>
+          Email address.
+        </ResponseField>
+        
+        <ResponseField name="name" type="string|null">
+          Display name.
+        </ResponseField>
+        
+        <ResponseField name="subaddress" type="string|null">
+          Subaddress (plus addressing) part.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="to" type="array<InboundEmailAddress>" required>
+      Array of recipient email addresses.
+    </ResponseField>
+    
+    <ResponseField name="cc" type="array<InboundEmailAddress>" required>
+      Array of CC email addresses.
+    </ResponseField>
+    
+    <ResponseField name="recipient" type="string" required>
+      The email address that received this message.
+    </ResponseField>
+    
+    <ResponseField name="subaddress" type="string|null">
+      Subaddress (plus addressing) part of the recipient.
+    </ResponseField>
+    
+    <ResponseField name="replyTo" type="string|null">
+      Reply-to email address.
+    </ResponseField>
+    
+    <ResponseField name="subject" type="string" required>
+      Email subject line.
+    </ResponseField>
+    
+    <ResponseField name="date" type="DateTimeImmutable" required>
+      Date when the email was sent.
+    </ResponseField>
+    
+    <ResponseField name="body" type="EmailBody" required>
+      Email body content.
+      
+      <Expandable title="properties">
+        <ResponseField name="text" type="string|null">
+          Plain text version of the email.
+        </ResponseField>
+        
+        <ResponseField name="html" type="string|null">
+          HTML version of the email.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="tag" type="string|null">
+      Optional tag from the route configuration.
+    </ResponseField>
+    
+    <ResponseField name="headers" type="array<EmailHeader>" required>
+      Array of email headers.
+      
+      <Expandable title="properties">
+        <ResponseField name="name" type="string" required>
+          Header name.
+        </ResponseField>
+        
+        <ResponseField name="value" type="string" required>
+          Header value.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="attachments" type="array<EmailAttachment>" required>
+      Array of email attachments.
+      
+      <Expandable title="properties">
+        <ResponseField name="filename" type="string" required>
+          Name of the attached file.
+        </ResponseField>
+        
+        <ResponseField name="content" type="string" required>
+          Base64-encoded file content.
+        </ResponseField>
+        
+        <ResponseField name="contentType" type="string" required>
+          MIME type of the attachment.
+        </ResponseField>
+        
+        <ResponseField name="size" type="integer" required>
+          Size of the attachment in bytes.
+        </ResponseField>
+        
+        <ResponseField name="contentId" type="string|null">
+          Content-ID for inline attachments.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="isSpam" type="boolean" required>
+      Whether the email was identified as spam.
+    </ResponseField>
+    
+    <ResponseField name="spamScore" type="float" required>
+      Spam score of the email.
+    </ResponseField>
+    
+    <ResponseField name="spamSymbols" type="array<SpamSymbol>" required>
+      Array of spam detection symbols.
+      
+      <Expandable title="properties">
+        <ResponseField name="name" type="string" required>
+          Symbol name.
+        </ResponseField>
+        
+        <ResponseField name="score" type="float" required>
+          Score contribution of this symbol.
+        </ResponseField>
+        
+        <ResponseField name="options" type="array<mixed>" required>
+          Additional options for this symbol.
+        </ResponseField>
+        
+        <ResponseField name="description" type="string|null">
+          Human-readable description.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+#### Example
+
+```php
+use Lettermint\Laravel\Events\MessageInbound;
+
+Event::listen(MessageInbound::class, function (MessageInbound $event) {
+    $from = $event->data->from->email;
+    $subject = $event->data->subject;
+    $body = $event->data->body->text ?? $event->data->body->html;
+    
+    // Process attachments
+    foreach ($event->data->attachments as $attachment) {
+        $filename = $attachment->filename;
+        $content = $attachment->getDecodedContent();
+        
+        // Save or process attachment
+        Storage::put("inbound/{$filename}", $content);
+    }
+    
+    Log::info("Received inbound email from {$from}: {$subject}");
+});
+```
+
+---
+
+### WebhookTest
+
+**Namespace:** `Lettermint\Laravel\Events\WebhookTest`
+
+**Triggered when:** A webhook test event is sent (used for verification).
+
+#### Properties
+
+<ResponseField name="envelope" type="WebhookEnvelope" required>
+  Event metadata.
+</ResponseField>
+
+<ResponseField name="data" type="WebhookTestData" required>
+  <Expandable title="properties">
+    <ResponseField name="message" type="string" required>
+      Test message content.
+    </ResponseField>
+    
+    <ResponseField name="webhookId" type="string" required>
+      Identifier of the webhook configuration being tested.
+    </ResponseField>
+    
+    <ResponseField name="timestamp" type="integer" required>
+      Unix timestamp when the test was triggered.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Helper Methods
+
+### WebhookEventType Enum
+
+The `WebhookEventType` enum provides helper methods for event classification:
+
+```php
+use Lettermint\Laravel\Webhooks\WebhookEventType;
+
+// Check if event is a bounce
+$isBounce = WebhookEventType::MessageHardBounced->isBounce(); // true
+$isBounce = WebhookEventType::MessageSoftBounced->isBounce(); // true
+
+// Check if event represents a delivery issue
+$isIssue = WebhookEventType::MessageHardBounced->isDeliveryIssue(); // true
+$isIssue = WebhookEventType::MessageSoftBounced->isDeliveryIssue(); // true
+$isIssue = WebhookEventType::MessageFailed->isDeliveryIssue(); // true
+$isIssue = WebhookEventType::MessageSuppressed->isDeliveryIssue(); // true
+```
+
+## Listening to Events
+
+You can listen to webhook events in several ways:
+
+### Event Listener Class
+
+```php
+namespace App\Listeners;
+
+use Lettermint\Laravel\Events\MessageDelivered;
+
+class LogEmailDelivery
+{
+    public function handle(MessageDelivered $event): void
+    {
+        logger()->info('Email delivered', [
+            'message_id' => $event->data->messageId,
+            'recipient' => $event->data->recipient,
+            'status_code' => $event->data->response->statusCode,
+        ]);
+    }
+}
+```
+
+Register in `EventServiceProvider`:
+
+```php
+protected $listen = [
+    MessageDelivered::class => [
+        LogEmailDelivery::class,
+    ],
+];
+```
+
+### Closure-based Listener
+
+```php
+use Illuminate\Support\Facades\Event;
+use Lettermint\Laravel\Events\MessageHardBounced;
+
+Event::listen(MessageHardBounced::class, function (MessageHardBounced $event) {
+    // Handle hard bounce
+    User::where('email', $event->data->recipient)
+        ->update(['email_bounced' => true]);
+});
+```
+
+### Listen to All Events
+
+```php
+use Lettermint\Laravel\Events\LettermintWebhookEvent;
+
+Event::listen(LettermintWebhookEvent::class, function (LettermintWebhookEvent $event) {
+    $envelope = $event->getEnvelope();
+    
+    logger()->info('Lettermint webhook received', [
+        'event_type' => $envelope->event->value,
+        'event_id' => $envelope->id,
+        'timestamp' => $envelope->timestamp,
+    ]);
+});
+```

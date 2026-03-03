@@ -1,0 +1,160 @@
+---
+title: Webhook Setup
+description: Configure Lettermint webhooks to receive real-time email event notifications in your Laravel application
+---
+
+The Lettermint Laravel package provides built-in webhook support with automatic signature verification to ensure secure event processing.
+
+## Configuration
+
+<Steps>
+  <Step title="Add webhook secret to environment">
+    Add your webhook signing secret to your `.env` file. You can find this secret in your Lettermint dashboard under the Webhooks section:
+
+    ```env
+    LETTERMINT_WEBHOOK_SECRET=your-webhook-signing-secret
+    ```
+  </Step>
+
+  <Step title="Optional: Configure webhook settings">
+    You can optionally customize the webhook route prefix and timestamp tolerance:
+
+    ```env
+    LETTERMINT_WEBHOOK_PREFIX=lettermint
+    LETTERMINT_WEBHOOK_TOLERANCE=300
+    ```
+
+    Or publish and modify the config file:
+
+    ```bash
+    php artisan vendor:publish --tag="lettermint-config"
+    ```
+
+    Then update `config/lettermint.php`:
+
+    ```php
+    'webhooks' => [
+        'secret' => env('LETTERMINT_WEBHOOK_SECRET'),
+        'prefix' => env('LETTERMINT_WEBHOOK_PREFIX', 'lettermint'),
+        'tolerance' => env('LETTERMINT_WEBHOOK_TOLERANCE', 300),
+    ],
+    ```
+  </Step>
+
+  <Step title="Configure webhook URL in Lettermint dashboard">
+    The package automatically registers a webhook endpoint at:
+
+    ```
+    POST /{prefix}/webhook
+    ```
+
+    By default, this is `POST /lettermint/webhook`. Add the full URL to your Lettermint dashboard:
+
+    ```
+    https://your-app.com/lettermint/webhook
+    ```
+  </Step>
+</Steps>
+
+## Configuration Options
+
+### Webhook Secret
+
+The signing secret used to verify incoming webhook requests. This ensures that the webhook payload is from Lettermint and hasn't been tampered with.
+
+```php
+'secret' => env('LETTERMINT_WEBHOOK_SECRET')
+```
+
+<Warning>
+  Never commit your webhook secret to version control. Always use environment variables.
+</Warning>
+
+### Route Prefix
+
+The route prefix for the webhook endpoint. The full URL will be:
+
+```
+{your-app-url}/{prefix}/webhook
+```
+
+Default: `lettermint` (results in `/lettermint/webhook`)
+
+```php
+'prefix' => env('LETTERMINT_WEBHOOK_PREFIX', 'lettermint')
+```
+
+### Timestamp Tolerance
+
+The maximum allowed time difference (in seconds) between the webhook timestamp and the current time. This helps prevent replay attacks.
+
+Default: `300` (5 minutes)
+
+```php
+'tolerance' => env('LETTERMINT_WEBHOOK_TOLERANCE', 300)
+```
+
+<Note>
+  A tolerance of 300 seconds (5 minutes) is recommended for most applications. This accounts for clock skew while still providing protection against replay attacks.
+</Note>
+
+## Signature Verification
+
+The package automatically verifies webhook signatures using the `VerifyWebhookSignature` middleware. This middleware:
+
+1. Extracts the webhook secret from your configuration
+2. Validates the signature headers against the request payload
+3. Checks that the timestamp is within the configured tolerance
+4. Returns a 401 Unauthorized response if verification fails
+
+The verification process uses the Lettermint PHP SDK's `Webhook` class:
+
+```php
+$webhook = new Webhook($secret, $tolerance);
+
+$payload = $webhook->verifyHeaders(
+    $headers,
+    $request->getContent()
+);
+```
+
+<Info>
+  Signature verification happens automatically. You don't need to write any verification code yourself.
+</Info>
+
+## Testing Your Webhook
+
+Once configured, you can test your webhook endpoint from the Lettermint dashboard. This will send a `webhook.test` event to your endpoint to verify it's working correctly.
+
+You can also listen for test events in your application:
+
+```php
+use Lettermint\Laravel\Events\WebhookTest;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
+
+Event::listen(WebhookTest::class, function (WebhookTest $event) {
+    Log::info('Webhook test received', [
+        'message' => $event->data->message,
+        'webhook_id' => $event->data->webhookId,
+        'timestamp' => $event->data->timestamp,
+    ]);
+});
+```
+
+## Troubleshooting
+
+### 401 Unauthorized Responses
+
+If your webhook endpoint is returning 401 responses:
+
+- Verify that `LETTERMINT_WEBHOOK_SECRET` is set correctly in your `.env` file
+- Check that the secret matches the one in your Lettermint dashboard
+- Ensure your server's clock is synchronized (timestamp tolerance may be exceeded)
+
+### Webhook Not Receiving Events
+
+- Verify the webhook URL is configured correctly in your Lettermint dashboard
+- Check that your application is publicly accessible (webhooks can't reach localhost)
+- Review your application logs for errors
+- Ensure CSRF protection is disabled for the webhook route (automatically handled by the package)
